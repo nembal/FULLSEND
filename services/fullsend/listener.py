@@ -1,7 +1,17 @@
-"""FULLSEND Listener - bridges Redis to Claude Code.
+"""FULLSEND Listener - central coordinator for the experiment lifecycle.
 
-Subscribes to fullsend:to_fullsend, writes requests to current.md,
-spawns Claude Code (run.sh or ralph.sh), reports back to Redis.
+Subscribes to:
+- fullsend:to_fullsend - incoming experiment requests
+- fullsend:builder_results - tool build completions
+- fullsend:experiment_results - execution results
+
+Handles the full loop:
+1. Receives experiment requests → spawns Claude Code
+2. When tools are built → triggers pending experiments
+3. When experiments fail → routes errors appropriately:
+   - ToolNotFoundError → auto-requests tool build
+   - API key errors → escalates to user via Discord
+   - Other errors → notifies orchestrator
 
 Usage:
     uv run python -m services.fullsend.listener
@@ -11,6 +21,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -37,6 +48,10 @@ RALPH_SH = SERVICE_DIR / "ralph.sh"
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 CHANNEL_TO_FULLSEND = "fullsend:to_fullsend"
 CHANNEL_TO_ORCHESTRATOR = "fullsend:to_orchestrator"
+CHANNEL_BUILDER_RESULTS = "fullsend:builder_results"
+CHANNEL_EXPERIMENT_RESULTS = "fullsend:experiment_results"
+CHANNEL_EXECUTE_NOW = "fullsend:execute_now"
+CHANNEL_BUILDER_TASKS = "fullsend:builder_tasks"
 
 # Execution timeout (Claude Code can take a while)
 EXECUTION_TIMEOUT = int(os.getenv("FULLSEND_TIMEOUT", "600"))  # 10 minutes default
@@ -168,6 +183,161 @@ async def notify_orchestrator(
     logger.info(f"Notified orchestrator: {msg_type}")
 
 
+async def trigger_execution(redis_client: redis.Redis, experiment_id: str) -> None:
+    """Trigger immediate execution of an experiment."""
+    message = {
+        "experiment_id": experiment_id,
+        "triggered_by": "fullsend_listener",
+        "timestamp": datetime.now(UTC).isoformat(),
+    }
+    await redis_client.publish(CHANNEL_EXECUTE_NOW, json.dumps(message))
+    logger.info(f"Triggered execution: {experiment_id}")
+
+
+async def store_pending_experiment(
+    redis_client: redis.Redis,
+    experiment_id: str,
+    required_tool: str,
+) -> None:
+    """Store experiment as pending until tool is built."""
+    key = f"pending_experiments:{required_tool}"
+    await redis_client.sadd(key, experiment_id)
+    logger.info(f"Experiment {experiment_id} pending tool: {required_tool}")
+
+
+async def get_pending_experiment_for_tool(
+    redis_client: redis.Redis,
+    tool_name: str,
+) -> dict | None:
+    """Get and remove pending experiment for a tool."""
+    key = f"pending_experiments:{tool_name}"
+    exp_id = await redis_client.spop(key)
+    if exp_id:
+        return {"experiment_id": exp_id}
+    return None
+
+
+async def request_tool_build(
+    redis_client: redis.Redis,
+    tool_name: str,
+    experiment_id: str,
+) -> None:
+    """Request Builder to create a missing tool."""
+    # Store experiment as pending
+    await store_pending_experiment(redis_client, experiment_id, tool_name)
+
+    # Request tool build
+    message = {
+        "prd": {
+            "tool_name": tool_name,
+            "description": f"Tool required by experiment {experiment_id}",
+            "auto_requested": True,
+        },
+        "requested_by": "fullsend_listener",
+        "request_id": f"auto_{experiment_id}_{tool_name}",
+    }
+    await redis_client.publish(CHANNEL_BUILDER_TASKS, json.dumps(message))
+    logger.info(f"Requested tool build: {tool_name} for experiment {experiment_id}")
+
+
+def _extract_tool_name_from_error(error: str) -> str | None:
+    """Extract tool name from a ToolNotFoundError message."""
+    # Common patterns: "Tool 'xyz' not found", "ToolNotFoundError: xyz"
+    patterns = [
+        r"Tool '([^']+)' not found",
+        r"Tool \"([^\"]+)\" not found",
+        r"ToolNotFoundError:\s*(\w+)",
+        r"tool[_\s]?name[:\s]+['\"]?(\w+)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, error, re.IGNORECASE)
+        if match:
+            return match.group(1)
+    return None
+
+
+async def handle_builder_result(data: dict, redis_client: redis.Redis) -> None:
+    """Handle builder completion - trigger pending experiment execution."""
+    msg_type = data.get("type")
+    tool_name = data.get("tool_name")
+    request_id = data.get("request_id")
+
+    if msg_type == "tool_built":
+        logger.info(f"Tool built: {tool_name}")
+
+        # Check for pending experiment that needed this tool
+        pending = await get_pending_experiment_for_tool(redis_client, tool_name)
+        if pending:
+            logger.info(f"Found pending experiment for {tool_name}, triggering execution")
+            await trigger_execution(redis_client, pending["experiment_id"])
+        else:
+            logger.info(f"No pending experiment for tool {tool_name}")
+
+    elif msg_type == "tool_build_failed":
+        error = data.get("error", "Unknown error")
+        logger.error(f"Tool build failed: {tool_name} - {error}")
+        # Notify orchestrator of build failure
+        await notify_orchestrator(redis_client, "tool_build_failed", {
+            "tool_name": tool_name,
+            "error": error,
+            "request_id": request_id,
+        })
+
+
+async def handle_experiment_result(data: dict, redis_client: redis.Redis) -> None:
+    """Handle execution result - log success or handle failure."""
+    msg_type = data.get("type")
+    exp_id = data.get("experiment_id")
+    run_id = data.get("run_id")
+
+    if msg_type == "experiment_completed":
+        logger.info(f"Experiment completed: {exp_id}")
+        await notify_orchestrator(redis_client, "experiment_success", {
+            "experiment_id": exp_id,
+            "run_id": run_id,
+            "duration": data.get("duration"),
+        })
+
+    elif msg_type == "experiment_failed":
+        error = data.get("error", "Unknown error")
+        error_type = data.get("error_type", "Unknown")
+
+        logger.error(f"Experiment failed: {exp_id} - {error_type}: {error}")
+
+        # Determine action based on error type
+        if error_type == "ToolNotFoundError":
+            # Tool missing - request build
+            tool_name = _extract_tool_name_from_error(error)
+            if tool_name:
+                logger.info(f"Missing tool detected: {tool_name}, requesting build")
+                await request_tool_build(redis_client, tool_name, exp_id)
+            else:
+                logger.warning(f"Could not extract tool name from error: {error}")
+                await notify_orchestrator(redis_client, "experiment_error", {
+                    "experiment_id": exp_id,
+                    "error": error,
+                    "error_type": error_type,
+                    "note": "Could not auto-request tool build",
+                })
+
+        elif any(kw in error.lower() for kw in ["api", "key", "unauthorized", "401", "403"]):
+            # API key issue - escalate to user via Orchestrator
+            await notify_orchestrator(redis_client, "api_key_required", {
+                "experiment_id": exp_id,
+                "error": error,
+                "suggestion": "Please set the required API key in .env",
+            })
+
+        else:
+            # Code bug or other issue - notify for investigation
+            await notify_orchestrator(redis_client, "experiment_error", {
+                "experiment_id": exp_id,
+                "run_id": run_id,
+                "error": error,
+                "error_type": error_type,
+            })
+
+
 async def process_request(
     request: dict,
     redis_client: redis.Redis,
@@ -208,39 +378,57 @@ async def main() -> None:
     logger.info("Starting FULLSEND Listener")
     logger.info("=" * 60)
     logger.info(f"Redis: {REDIS_URL}")
-    logger.info(f"Channel: {CHANNEL_TO_FULLSEND}")
+    logger.info(f"Channels: {CHANNEL_TO_FULLSEND}, {CHANNEL_BUILDER_RESULTS}, {CHANNEL_EXPERIMENT_RESULTS}")
     logger.info(f"Timeout: {EXECUTION_TIMEOUT}s")
     logger.info(f"Service dir: {SERVICE_DIR}")
     logger.info("=" * 60)
-    
+
     # Connect to Redis
     redis_client = redis.from_url(REDIS_URL, decode_responses=True)
     pubsub = redis_client.pubsub()
-    
+
+    channels = [CHANNEL_TO_FULLSEND, CHANNEL_BUILDER_RESULTS, CHANNEL_EXPERIMENT_RESULTS]
+
     try:
         # Test connection
         await redis_client.ping()
         logger.info("Connected to Redis")
-        
-        # Subscribe
-        await pubsub.subscribe(CHANNEL_TO_FULLSEND)
-        logger.info(f"Subscribed to {CHANNEL_TO_FULLSEND}")
-        logger.info("Waiting for requests...")
-        
+
+        # Subscribe to all channels
+        await pubsub.subscribe(*channels)
+        for ch in channels:
+            logger.info(f"Subscribed to {ch}")
+        logger.info("Waiting for messages...")
+
         async for message in pubsub.listen():
-            if message["type"] == "message":
-                try:
-                    data = json.loads(message["data"])
+            if message["type"] != "message":
+                continue
+
+            channel = message.get("channel", "")
+            if isinstance(channel, bytes):
+                channel = channel.decode()
+
+            try:
+                data = json.loads(message["data"])
+
+                if channel == CHANNEL_TO_FULLSEND:
                     await process_request(data, redis_client)
-                except json.JSONDecodeError as e:
-                    logger.error(f"Failed to parse message: {e}")
-                except Exception as e:
-                    logger.error(f"Error processing request: {e}", exc_info=True)
-                    
+                elif channel == CHANNEL_BUILDER_RESULTS:
+                    await handle_builder_result(data, redis_client)
+                elif channel == CHANNEL_EXPERIMENT_RESULTS:
+                    await handle_experiment_result(data, redis_client)
+                else:
+                    logger.warning(f"Unknown channel: {channel}")
+
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse message: {e}")
+            except Exception as e:
+                logger.error(f"Error processing message on {channel}: {e}", exc_info=True)
+
     except KeyboardInterrupt:
         logger.info("Shutting down FULLSEND Listener...")
     finally:
-        await pubsub.unsubscribe(CHANNEL_TO_FULLSEND)
+        await pubsub.unsubscribe(*channels)
         await redis_client.aclose()
         logger.info("FULLSEND Listener stopped")
 

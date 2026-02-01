@@ -149,7 +149,8 @@ async def process_request(
 ) -> None:
     """Process a single Builder request."""
     prd = request.get("prd", {})
-    tool_name = prd.get("name", "unknown")
+    # Support both "name" and "tool_name" keys (Orchestrator uses "tool_name")
+    tool_name = prd.get("name") or prd.get("tool_name", "unknown")
     request_id = request.get("request_id", datetime.now(UTC).strftime("%Y%m%d_%H%M%S"))
     
     logger.info(f"Processing PRD: {tool_name} (request: {request_id})")

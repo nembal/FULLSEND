@@ -1,40 +1,32 @@
 prd:
-  prd:
-    name: github_stargazer_scraper
-    purpose: Identify and extract profile information about users who have starred
-      specific GitHub repositories, enabling targeted outreach to developers and technical
-      leaders interested in specific technologies
-    inputs:
-      repo_identifiers: List of repository paths (e.g., 'langchain-ai/langchain',
-        'Significant-Gravitas/AutoGPT', 'joaomdmoura/crewAI')
-      filters:
-        min_followers: Optional minimum follower count
-        has_company: Optional boolean to require company field
-        has_email: Optional boolean to require public email
-      limit: Maximum number of users to return
-    outputs:
-      users:
-      - username: GitHub username
-        display_name: Full name if available
-        company: Company field from profile
-        bio: User bio
-        email: Public email if available
-        location: Location field
-        followers: Follower count
-        profile_url: Link to GitHub profile
-        starred_repos: Which of the input repos they starred
-  context: Needed for experiment exp_20260201_cto_stargazer_email - targeting CTOs
-    who starred AI agent framework repos
-  note: Will also need email_sender tool after this, and product context filled in
-    for personalization
+  tool_name: email_sender
+  purpose: Send personalized cold outreach emails to prospects identified by other
+    tools. Must support templating with personalization variables (name, company,
+    repo_starred, etc.) and track delivery status.
+  inputs:
+    to_email: string - recipient email address
+    to_name: string - recipient name for personalization
+    subject: string - email subject line (supports {{variables}})
+    body_template: string - email body with {{variable}} placeholders
+    personalization: object - key/value pairs to substitute into template
+    from_name: string - sender display name
+    reply_to: string - reply-to address (optional)
+  outputs:
+    success: boolean - whether email was sent
+    message_id: string - unique identifier for tracking
+    error: string - error message if failed
+  requirements:
+  - Use a reliable transactional email service (Resend, SendGrid, or Postmark)
+  - Support rate limiting to avoid spam flags
+  - Log all sends for experiment tracking
+  - Handle bounces gracefully
   _meta:
     requested_by: orchestrator
     priority: high
-    received_at: '2026-02-01T19:45:05.859606+00:00'
-    orchestrator_reasoning: 'The CTO stargazer experiment is a reasonable first hypothesis,
-      but we''re blocked on execution - we only have ''test_hello_world'' as a tool.
-      Before we can run any GitHub-based targeting experiments, we need the ability
-      to scrape stargazer data. This is the foundational capability that enables this
-      experiment and many future ones. Note: Product context is also undefined, which
-      will affect email personalization quality, but we can build tools in parallel
-      while that gets resolved.'
+    received_at: '2026-02-01T20:00:48.023070+00:00'
+    orchestrator_reasoning: FULLSEND completed experiment design for CTO competitor-repo
+      targeting, but it's blocked pending an email_sender tool which doesn't exist
+      yet. The experiment is ready to execute but can't without email capability.
+      This is the critical path blocker - we have the strategy (github_stargazer_scraper
+      to find CTOs) but no way to reach them. Building email_sender unblocks this
+      experiment and will be reusable for all future outreach experiments.

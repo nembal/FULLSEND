@@ -26,11 +26,16 @@ Completed: 2026-02-01T11:45:00-08:00
 FULLSEND has two components:
 
 ### 1. Listener Daemon (`listener.py`)
-Python daemon that bridges Redis → Claude Code:
-- Subscribes to `fullsend:to_fullsend`
+Central coordinator for the experiment lifecycle:
+- Subscribes to `fullsend:to_fullsend`, `fullsend:builder_results`, `fullsend:experiment_results`
 - Writes incoming requests to `requests/current.md`
 - Spawns `run.sh` (or `ralph.sh` for complex tasks)
-- Reports completion/failure back to Orchestrator
+- Handles full experiment loop:
+  - When tools are built → triggers pending experiments
+  - When experiments fail → routes errors appropriately:
+    - `ToolNotFoundError` → auto-requests tool build
+    - API key errors → escalates to user via Discord
+    - Other errors → notifies orchestrator
 
 **Run:** `uv run python -m services.fullsend.listener`
 
@@ -47,13 +52,19 @@ The actual experiment designer:
 
 **Subscribes to:**
 - `fullsend:to_fullsend` - Receives experiment requests from Orchestrator
+- `fullsend:builder_results` - Tool build completions from Builder
+- `fullsend:experiment_results` - Execution results from Executor
 
 **Publishes to:**
 - `fullsend:experiments` - New experiment specs (Executor listens)
 - `fullsend:schedules` - Schedules (Executor listens)
-- `fullsend:builder_requests` - Tool requests (Builder listens)
-- `fullsend:to_orchestrator` - Status updates (started, completed, failed)
+- `fullsend:builder_tasks` - Tool build requests (Builder listens)
+- `fullsend:execute_now` - Trigger experiment execution (Executor listens)
+- `fullsend:to_orchestrator` - Status updates (started, completed, failed, errors)
 - `metrics_specs:{id}` - Store metrics specs for Redis Agent
+
+**Redis Keys:**
+- `pending_experiments:{tool_name}` - Set of experiment IDs waiting for a tool to be built
 
 ## Key Decisions
 - Listener daemon bridges Redis pub/sub → file-based Claude Code
@@ -61,6 +72,9 @@ The actual experiment designer:
 - YAML spec format with validation rules
 - RALPH spawner for multi-step builds (unique work IDs)
 - 10-minute default timeout for Claude Code execution
+- Full loop wiring: listener handles builder/executor results to complete the cycle
+- Auto-retry on missing tools: stores pending experiment, requests build, triggers on completion
+- Smart error routing: API errors escalate to user, code bugs notify orchestrator
 
 ## Blockers
 None
