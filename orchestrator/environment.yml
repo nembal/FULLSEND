@@ -1,0 +1,12 @@
+# Conda environment for the orchestrator
+# Create: conda env create -f environment.yml
+# Activate: conda activate weave_hacks
+
+name: weave_hacks
+channels:
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    - -r requirements.txt

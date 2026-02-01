@@ -1,0 +1,9 @@
+openai
+weave
+python-dotenv
+redis
+langchain-openai
+langchain-core
+langgraph
+langchain-mcp-adapters
+redis-mcp-server
