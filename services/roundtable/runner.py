@@ -1,74 +1,119 @@
 """Roundtable loop: ARTIST, BUSINESS, TECH take turns; same LLM, different prompts."""
 
+import os
+
 import weave
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from .llm import get_llm
-from .personas import ROLES, get_persona
+from .personas import ROLES, get_persona, get_summarizer_prompt
 
-weave.init("viswanathkothe-syracuse-university/weavehacks")
+weave.init(os.getenv("WEAVE_PROJECT", "fullsend/roundtable"))
 
 
 @weave.op
 def run_roundtable(
-    topic: str,
-    max_rounds: int = 2,
-    seed_context: str | None = None,
+    prompt: str,
+    context: str = "",
+    learnings: list[str] | None = None,
+    max_rounds: int = 3,
 ):
     """
     Run the roundtable: each role (ARTIST, BUSINESS, TECH) speaks in turn for max_rounds.
-    Same LLM, different system prompt per role. Optional seed_context (e.g. from Redis) prepended once.
+    Same LLM, different system prompt per role.
+
+    Args:
+        prompt: The topic or question to debate
+        context: Optional context string (e.g. background info)
+        learnings: Optional list of learnings from past experiments
+        max_rounds: Number of debate rounds (default: 3)
+
+    Returns:
+        dict with:
+            - transcript: Formatted string with round headers
+            - summary: List of actionable tasks with owners
     """
     llm = get_llm()
-    transcript: list[dict[str, str]] = []
+    learnings = learnings or []
 
-    initial = topic.strip()
-    if seed_context and seed_context.strip():
-        initial = f"Context:\n{seed_context.strip()}\n\nTopic: {topic.strip()}"
+    # Build initial context block (PRD format)
+    debate_context = f"""## Topic
+{prompt}
+"""
+    if context:
+        debate_context += f"""
+## Context
+{context}
+"""
+    if learnings:
+        debate_context += f"""
+## Learnings from Past Experiments
+{chr(10).join(f"- {l}" for l in learnings)}
+"""
+
+    transcript_parts: list[str] = []
 
     for round_num in range(max_rounds):
+        # Add round header (PRD format)
+        transcript_parts.append(f"\n--- Round {round_num + 1} ---\n")
+
         for role in ROLES:
             persona = get_persona(role)
+
+            # Build conversation so far
+            history = "".join(transcript_parts)
+
+            # Build agent prompt
+            agent_prompt = f"""{debate_context}
+
+## Debate So Far
+{history}
+
+## Your Turn
+Respond to the topic. Build on or challenge previous points.
+Keep it concise (2-3 sentences). Be distinctive to your persona."""
+
             messages = [
                 SystemMessage(content=persona),
-                HumanMessage(content=initial),
+                HumanMessage(content=agent_prompt),
             ]
-            for entry in transcript:
-                messages.append(
-                    HumanMessage(content=f"[{entry['role'].upper()}] {entry['content']}")
-                )
-            messages.append(
-                HumanMessage(content=f"Your turn as {role.upper()}. Reply in character.")
-            )
 
             response = llm.invoke(messages)
             content = response.content if hasattr(response, "content") else str(response)
-            transcript.append({"role": role, "content": content.strip()})
+            transcript_parts.append(f"{role.upper()}: {content.strip()}\n")
 
-    # Summarizer agent: 3–5 actionable tasks for AI agents to run campaigns autonomously; cost-conscious; max 10–15 lines.
-    summarizer_system = """You are a summarizer for an AI execution layer. Given the roundtable transcript, output 3–5 actionable GTM tasks that AI agents can carry out autonomously (no human hand-holding).
-Constraints:
-- Tasks must be executable by AI agents (clear, automatable steps).
-- Prefer low-cost, high-return options (avoid expensive or vague tasks).
-- Output must be at most 10–15 lines total.
-No preamble—only this format:
-Do this first: [one concrete, autonomous, cost-conscious task]
-Do this next: [...]
-Do this third: [...]
-(Do this fourth / Do this fifth only if needed; keep total to 3–5 tasks and 10–15 lines.)"""
+    # Format transcript as string (PRD format)
+    transcript = "".join(transcript_parts)
 
-    transcript_text = "\n\n".join(
-        f"[{e['role'].upper()}] {e['content']}" for e in transcript
-    )
+    # Summarizer agent: use prompt from file (includes owner assignment rules)
+    summarizer_prompt = get_summarizer_prompt()
+
     summary_messages = [
-        SystemMessage(content=summarizer_system),
-        HumanMessage(content=f"Roundtable transcript:\n\n{transcript_text}\n\nOutput 3–5 actionable tasks in the required format (max 10–15 lines)."),
+        SystemMessage(content=summarizer_prompt),
+        HumanMessage(content=f"""## Debate Transcript
+{transcript}
+
+## Output
+List 3-5 actionable tasks. Each should be specific and executable.
+Format as a simple list:
+- Task description (Owner: who)"""),
     ]
+
     summary_response = llm.invoke(summary_messages)
-    summary = (
+    summary_text = (
         summary_response.content
         if hasattr(summary_response, "content")
         else str(summary_response)
     ).strip()
+
+    # Parse summary into list (PRD format)
+    lines = summary_text.split("\n")
+    tasks = [
+        line.lstrip("- ").strip()
+        for line in lines
+        if line.strip().startswith("-")
+    ]
+    # Ensure max 5 tasks
+    summary = tasks[:5] if tasks else [summary_text]
 
     return {"transcript": transcript, "summary": summary}

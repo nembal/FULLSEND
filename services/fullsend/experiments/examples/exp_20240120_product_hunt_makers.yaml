@@ -1,0 +1,71 @@
+experiment:
+  id: exp_20240120_product_hunt_makers
+  hypothesis: "Makers who launched AI/dev tools on Product Hunt in the last 30 days are actively building and need better GTM automation"
+  created_at: "2024-01-20T14:00:00Z"
+  state: draft
+
+  target:
+    description: "Product Hunt makers who launched AI or developer tools in the last 30 days"
+    size: 200
+    source: "Product Hunt API via producthunt_maker_scraper tool"
+    filters:
+      - topics_include: ["artificial-intelligence", "developer-tools", "api", "saas"]
+      - upvotes_min: 50
+      - maker_has_twitter: true
+      - launched_within_days: 30
+
+  execution:
+    tool: producthunt_maker_scraper
+    params:
+      topics: ["artificial-intelligence", "developer-tools", "api"]
+      min_upvotes: 50
+      days_back: 30
+      limit: 200
+    schedule: "0 10 * * WED"
+    timezone: "America/New_York"
+
+  outreach:
+    channel: twitter
+    sender: "@gtmautopilot"
+    template: |
+      Hey {{first_name}}! Congrats on the {{product_name}} launch 🚀
+
+      Saw you got {{upvotes}} upvotes — solid validation.
+
+      Building something similar for GTM automation. The hardest part was finding the right early users.
+
+      Curious: how are you handling outbound? We're testing some wild automation ideas — happy to share what's working.
+
+  metrics:
+    - name: dms_sent
+      type: counter
+    - name: dms_opened
+      type: counter
+    - name: open_rate
+      type: percentage
+      formula: "dms_opened / dms_sent"
+    - name: replies
+      type: counter
+    - name: positive_replies
+      type: counter
+    - name: response_rate
+      type: percentage
+      formula: "replies / dms_sent"
+      success_threshold: 0.15
+    - name: conversations_started
+      type: counter
+    - name: leads_qualified
+      type: counter
+    - name: follows_back
+      type: counter
+
+  success_criteria:
+    - response_rate > 0.15
+    - positive_replies >= 10
+    - conversations_started >= 5
+    - leads_qualified >= 3
+
+  failure_criteria:
+    - response_rate < 0.05 after 50 sends
+    - blocked_by_twitter: true
+    - reported_as_spam > 1

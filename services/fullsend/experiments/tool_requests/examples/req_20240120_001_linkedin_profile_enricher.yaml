@@ -1,0 +1,100 @@
+tool_request:
+  id: req_20240120_001
+  name: linkedin_profile_enricher
+  description: "Enrich contact records with LinkedIn profile data including current title, company, and connection count"
+  priority: high
+  requested_by: fullsend
+  experiment_blocked: exp_20240120_product_hunt_makers
+
+  inputs:
+    - name: contacts
+      type: list
+      description: "List of contacts to enrich, each with at least name and company or email"
+      required: true
+      schema:
+        name: string
+        email: "string | null"
+        company: "string | null"
+        twitter_handle: "string | null"
+
+    - name: match_threshold
+      type: number
+      description: "Confidence threshold for matching (0.0-1.0)"
+      default: 0.8
+
+    - name: include_experience
+      type: boolean
+      description: "Whether to fetch full work history"
+      default: false
+
+    - name: browserbase_api_key
+      type: string
+      description: "Browserbase API key for web scraping"
+      required: true
+
+  outputs:
+    - name: enriched_contacts
+      type: list
+      schema:
+        original_email: "string | null"
+        original_name: string
+        linkedin_url: "string | null"
+        match_confidence: number
+        current_title: "string | null"
+        current_company: "string | null"
+        location: "string | null"
+        connections: "integer | null"
+        headline: "string | null"
+        experience:
+          type: list
+          schema:
+            title: string
+            company: string
+            duration: string
+            is_current: boolean
+
+    - name: matched_count
+      type: integer
+
+    - name: failed_count
+      type: integer
+
+    - name: rate_limited
+      type: boolean
+
+  requirements:
+    - Must use Browserbase for LinkedIn scraping (no direct API)
+    - Must implement respectful rate limiting (max 1 request per 3 seconds)
+    - Must rotate browser sessions to avoid detection
+    - Must match contacts by name+company OR email domain
+    - Return partial enrichment if some fields unavailable
+    - Handle LinkedIn login walls gracefully (flag as needs_auth)
+    - Cache enriched profiles for 7 days
+    - Support batch processing up to 100 contacts per call
+    - Log all LinkedIn profile URLs found for audit trail
+    - Must not store LinkedIn credentials
+
+  example_usage: |
+    from tools.linkedin_profile_enricher import enrich_profiles
+    import os
+
+    contacts = [
+        {"name": "Sarah Chen", "company": "Vercel", "email": "sarah@vercel.com"},
+        {"name": "Marcus Johnson", "company": "Stripe", "twitter_handle": "mjohnsondev"},
+        {"name": "Priya Patel", "company": "Notion", "email": None}
+    ]
+
+    result = enrich_profiles(
+        contacts=contacts,
+        match_threshold=0.85,
+        include_experience=True,
+        browserbase_api_key=os.environ["BROWSERBASE_API_KEY"]
+    )
+
+    print(f"Enriched {result['matched_count']}/{len(contacts)} contacts")
+
+    for contact in result['enriched_contacts']:
+        if contact['match_confidence'] > 0.9:
+            print(f"{contact['current_title']} at {contact['current_company']}")
+            if contact['connections'] and contact['connections'] > 500:
+                print(f"  -> High-influence contact ({contact['connections']} connections)")

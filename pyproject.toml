@@ -11,6 +11,11 @@ dependencies = [
     "langchain-core>=0.2.0",
     "python-dotenv>=1.0.0",
     "weave>=0.50.0",
+    "croniter>=6.0.0",
+    "browserbase>=1.4.0",
+    "playwright>=1.58.0",
+    "httpx>=0.28.1",
+    "beautifulsoup4>=4.14.3",
 ]
 
 [project.optional-dependencies]
@@ -18,6 +23,7 @@ dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
     "ruff>=0.1.0",
+    "fakeredis>=2.20",
 ]
 
 [tool.uv]
@@ -25,12 +31,13 @@ dev = [
 package = false
 
 [tool.uv.workspace]
-# Only services with pyproject.toml are workspace members (discord). redis/ and roundtable/ are scripts under root deps.
-members = ["services/discord"]
+# Only services with pyproject.toml are workspace members. redis/ and roundtable/ are scripts under root deps.
+members = ["services/discord", "services/watcher"]
 
 [tool.uv.sources]
 # Allow workspace packages to depend on each other
 fullsend-discord = { workspace = true }
+fullsend-watcher = { workspace = true }
 
 [tool.ruff]
 line-length = 100
@@ -43,3 +50,12 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["services"]
+
+[dependency-groups]
+dev = [
+    "aiofiles>=25.1.0",
+    "anthropic>=0.77.0",
+    "google-generativeai>=0.8.6",
+    "pydantic-settings>=2.12.0",
+    "redis>=7.1.0",
+]

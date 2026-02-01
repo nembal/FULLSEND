@@ -1,0 +1,22 @@
+Extract strategic learnings from this event or experiment result.
+
+## Event/Result
+{{event}}
+
+## What We Knew Before
+{{prior_learnings}}
+
+## Instructions
+1. Identify any new strategic insights
+2. Focus on patterns that can inform future decisions
+3. Be specific but concise
+4. Include any counter-intuitive findings
+5. Note confidence level (observation vs validated pattern)
+
+Format as a markdown learning entry:
+
+**[Title of Learning]**
+- Observation: What happened
+- Insight: What it means
+- Confidence: High/Medium/Low
+- Action: How to use this going forward

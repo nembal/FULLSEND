@@ -1,0 +1,91 @@
+experiment:
+  id: exp_20240201_linkedin_series_a
+  hypothesis: "Series A startups that just raised are actively hiring and scaling GTM — they'll respond to pain-point-focused outreach"
+  created_at: "2024-02-01T09:00:00Z"
+  state: draft
+
+  target:
+    description: "Founders and GTM leaders at startups that announced Series A in the last 60 days"
+    size: 150
+    source: "Crunchbase API + LinkedIn via funding_round_scraper and linkedin_enricher tools"
+    filters:
+      - funding_round: "series_a"
+      - raised_within_days: 60
+      - raised_amount_min: 5000000
+      - raised_amount_max: 30000000
+      - industry_include: ["saas", "developer-tools", "ai", "fintech"]
+      - employee_count_range: [20, 150]
+      - title_contains: ["Founder", "CEO", "CRO", "VP Sales", "Head of Growth"]
+
+  execution:
+    tool: funding_round_scraper
+    params:
+      funding_type: "series_a"
+      min_amount: 5000000
+      max_amount: 30000000
+      industries: ["saas", "developer-tools", "ai", "fintech"]
+      days_back: 60
+      limit: 500
+    secondary_tool: linkedin_enricher
+    secondary_params:
+      enrich_founders: true
+      enrich_gtm_leaders: true
+    schedule: "0 8 * * TUE,THU"
+    timezone: "America/New_York"
+
+  outreach:
+    channel: linkedin
+    sender: "jake-smith-gtm"
+    template: |
+      Hi {{first_name}},
+
+      Congrats on the Series A! Saw the announcement — {{company_name}} is tackling a real problem in {{industry}}.
+
+      Curious how you're thinking about scaling GTM post-raise. Most founders I talk to are stuck between:
+      - Hiring SDRs (expensive, slow to ramp)
+      - Outsourcing lead gen (inconsistent quality)
+      - Building in-house automation (engineering time sink)
+
+      We're building autonomous GTM agents that handle the entire top-of-funnel. Currently in early access with a few Series A companies.
+
+      Worth a quick chat to see if it fits your scaling plans?
+
+  metrics:
+    - name: connection_requests_sent
+      type: counter
+    - name: connections_accepted
+      type: counter
+    - name: acceptance_rate
+      type: percentage
+      formula: "connections_accepted / connection_requests_sent"
+    - name: messages_sent
+      type: counter
+    - name: message_opens
+      type: counter
+    - name: replies
+      type: counter
+    - name: positive_replies
+      type: counter
+    - name: response_rate
+      type: percentage
+      formula: "replies / messages_sent"
+      success_threshold: 0.20
+    - name: calls_scheduled
+      type: counter
+    - name: call_rate
+      type: percentage
+      formula: "calls_scheduled / positive_replies"
+    - name: avg_response_time
+      type: duration
+
+  success_criteria:
+    - acceptance_rate > 0.40
+    - response_rate > 0.20
+    - positive_replies >= 15
+    - calls_scheduled >= 5
+
+  failure_criteria:
+    - acceptance_rate < 0.15 after 50 requests
+    - response_rate < 0.05 after 30 messages
+    - linkedin_restricted: true
+    - reported_count > 2

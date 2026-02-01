@@ -1,0 +1,93 @@
+experiment:
+  id: exp_20240115_github_stargazers
+  hypothesis: "CTOs who starred LangChain are actively building AI products and will respond to a direct outreach about API tooling"
+  created_at: "2024-01-15T10:30:00Z"
+  state: draft
+
+  target:
+    description: "Technical leaders (CTO, VP Eng, Founder) who starred langchain-ai/langchain in the last 90 days"
+    size: 500
+    source: "GitHub API via github_stargazer_scraper tool"
+    filters:
+      - has_email: true
+      - has_company: true
+      - title_contains: ["CTO", "Founder", "CEO", "VP Eng", "Head of", "Principal"]
+      - starred_within_days: 90
+
+  execution:
+    tool: github_stargazer_scraper
+    params:
+      repo: "langchain-ai/langchain"
+      limit: 2000
+      extract_email: true
+      include_commits: true
+    schedule: "0 9 * * MON"
+    timezone: "America/Los_Angeles"
+
+  outreach:
+    channel: email
+    sender: "jake@gtmautopilot.com"
+    subject: "Saw you starred LangChain"
+    template: |
+      Hi {{first_name}},
+
+      I noticed you starred LangChain a few weeks ago — I'm guessing you're building something with LLMs.
+
+      We're working on a tool that auto-generates API schemas from documentation. Cuts integration time from days to hours when you need to connect external services to your AI workflows.
+
+      Early users are shipping 3x faster. Would love to show you what we've built.
+
+      Got 15 minutes this week?
+
+      Jake
+      Founder, GTM Autopilot
+
+      P.S. No pitch deck — just a quick demo of something I think you'd find useful.
+
+  metrics:
+    - name: emails_sent
+      type: counter
+    - name: emails_delivered
+      type: counter
+    - name: emails_bounced
+      type: counter
+    - name: bounce_rate
+      type: percentage
+      formula: "emails_bounced / emails_sent"
+    - name: emails_opened
+      type: counter
+    - name: open_rate
+      type: percentage
+      formula: "emails_opened / emails_delivered"
+    - name: link_clicks
+      type: counter
+    - name: replies
+      type: counter
+    - name: positive_replies
+      type: counter
+    - name: response_rate
+      type: percentage
+      formula: "replies / emails_delivered"
+      success_threshold: 0.08
+    - name: meetings_booked
+      type: counter
+    - name: meeting_rate
+      type: percentage
+      formula: "meetings_booked / emails_delivered"
+    - name: unsubscribes
+      type: counter
+    - name: unsubscribe_rate
+      type: percentage
+      formula: "unsubscribes / emails_delivered"
+
+  success_criteria:
+    - response_rate > 0.08
+    - positive_replies >= 5
+    - meetings_booked >= 2
+    - bounce_rate < 0.05
+
+  failure_criteria:
+    - response_rate < 0.02 after 100 sends
+    - unsubscribe_rate > 0.03
+    - bounce_rate > 0.10
+    - spam_complaints > 2

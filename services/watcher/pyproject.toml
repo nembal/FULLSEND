@@ -1,0 +1,25 @@
+[project]
+name = "fullsend-watcher"
+version = "0.1.0"
+description = "Watcher service - filters Discord noise, answers simple queries, escalates important stuff"
+requires-python = ">=3.11"
+
+dependencies = [
+    "google-generativeai>=0.8.0",
+    "redis>=5.0.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

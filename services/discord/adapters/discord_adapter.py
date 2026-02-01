@@ -55,6 +55,10 @@ class DiscordAdapter:
         self._last_status_post_time: float = 0
         self._status_rate_limit_seconds: float = 5.0
 
+        # Memory limits to prevent unbounded growth
+        self._max_reacted_messages = 1000
+        self._max_pending_actions = 100
+
         # Configure intents
         intents = discord.Intents.default()
         intents.messages = True
@@ -140,6 +144,12 @@ class DiscordAdapter:
             try:
                 await message.add_reaction(self.settings.idea_react_emoji)
                 self.reacted_messages.add(message.id)
+                # Prevent unbounded memory growth - trim oldest entries
+                if len(self.reacted_messages) > self._max_reacted_messages:
+                    # Remove ~10% of oldest entries (sets are unordered, so this is approximate)
+                    to_remove = len(self.reacted_messages) - self._max_reacted_messages + 100
+                    for _ in range(to_remove):
+                        self.reacted_messages.pop()
                 logger.debug(f"Reacted to message {message.id} with {self.settings.idea_react_emoji}")
             except Exception as e:
                 logger.error(f"Failed to add reaction to message {message.id}: {e}")
@@ -356,6 +366,11 @@ class DiscordAdapter:
 
             # Track the pending action
             self.pending_actions[message.id] = action.id
+            # Prevent unbounded growth - remove oldest if at limit
+            if len(self.pending_actions) > self._max_pending_actions:
+                oldest_key = next(iter(self.pending_actions))
+                del self.pending_actions[oldest_key]
+                logger.warning(f"Removed stale pending action due to limit")
             logger.info(f"Posted action request {action.id} to #{status_channel.name}")
 
         except Exception as e:

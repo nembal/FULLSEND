@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-fullsend-discord = "main:main"
+fullsend-discord = "services.discord.main:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -4,7 +4,7 @@ These models define the structure of messages passed between the Discord bot,
 web adapter, and the orchestrator via Redis pub/sub.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 from uuid import uuid4
@@ -60,7 +60,7 @@ class AgentMessage(BaseModel):
 
     type: AgentMessageType = Field(..., description="Type of the message")
     payload: dict[str, Any] = Field(default_factory=dict, description="Message payload data")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="When the message was created")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC), description="When the message was created")
     priority: MessagePriority = Field(default=MessagePriority.NORMAL, description="Message priority level")
 
 
@@ -88,7 +88,7 @@ class HumanMessage(BaseModel):
     payload: dict[str, Any] = Field(default_factory=dict, description="Message payload data")
     source: str = Field(..., description="Source of the message (discord/web)")
     user_id: str = Field(..., description="Identifier of the user who sent the message")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="When the message was created")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC), description="When the message was created")
 
 
 class IdeaSubmission(BaseModel):

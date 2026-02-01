@@ -1,0 +1,18 @@
+You're dispatching an idea to FULLSEND for experiment design.
+
+## The Idea
+{{idea}}
+
+## Context to Include
+- Relevant learnings: {{relevant_learnings}}
+- Similar past experiments: {{similar_experiments}}
+- Available tools: {{tools}}
+- Constraints: {{constraints}}
+
+Write a natural language message to FULLSEND explaining:
+1. What we want to test
+2. Why we think it might work (based on learnings)
+3. Any tools already available
+4. Any constraints or preferences
+
+Keep it conversational. FULLSEND is an LLM, not a rigid API.

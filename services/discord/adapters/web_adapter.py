@@ -9,7 +9,7 @@ import json
 import logging
 import uuid
 from collections import deque
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -136,7 +136,7 @@ class WebAdapter:
         self.message_router = message_router
         self._connection_manager = ConnectionManager()
         self.app = self._create_app()
-        self._start_time = datetime.utcnow()
+        self._start_time = datetime.now(UTC)
         self._feed: deque[FeedItem] = deque(maxlen=100)
         self._paused = False
         self._redis_subscribed = False
@@ -215,13 +215,13 @@ class WebAdapter:
         @app.get("/api/status", response_model=StatusResponse)
         async def get_status() -> StatusResponse:
             """Get current service status."""
-            now = datetime.utcnow()
+            now = datetime.now(UTC)
             uptime = (now - self._start_time).total_seconds()
 
             return StatusResponse(
                 status="paused" if self._paused else "running",
                 mode=self.settings.env,
-                redis_connected=self.redis_bus is not None and self.redis_bus._connected,
+                redis_connected=self.redis_bus is not None and self.redis_bus.is_connected,
                 uptime_seconds=uptime,
                 timestamp=now.isoformat(),
             )
@@ -255,13 +255,13 @@ class WebAdapter:
                 return {"success": True, "message": "Agent resumed", "status": "running"}
 
             elif command == "status":
-                now = datetime.utcnow()
+                now = datetime.now(UTC)
                 uptime = (now - self._start_time).total_seconds()
                 return {
                     "success": True,
                     "status": "paused" if self._paused else "running",
                     "mode": self.settings.env,
-                    "redis_connected": self.redis_bus is not None and self.redis_bus._connected,
+                    "redis_connected": self.redis_bus is not None and self.redis_bus.is_connected,
                     "uptime_seconds": uptime,
                 }
 
@@ -286,7 +286,7 @@ class WebAdapter:
                     user_id=request.user_id,
                 )
 
-                if self.redis_bus and self.redis_bus._connected:
+                if self.redis_bus and self.redis_bus.is_connected:
                     from ..core.bus import publish_to_agent
                     await publish_to_agent(self.redis_bus, message)
                     logger.info(f"Idea submitted via web: {content[:50]}...")
@@ -329,7 +329,7 @@ class WebAdapter:
             id=item_id,
             type=item_type,
             content=content,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             source=source,
         )
         self._feed.appendleft(feed_item)

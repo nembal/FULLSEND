@@ -1,0 +1,110 @@
+tool_request:
+  id: req_20240201_001
+  name: crunchbase_company_scraper
+  description: "Scrape company funding data from Crunchbase including recent rounds, investors, and team size"
+  priority: medium
+  requested_by: fullsend
+  experiment_blocked: exp_20240201_linkedin_series_a
+
+  inputs:
+    - name: company_domains
+      type: list
+      description: "List of company domains to look up (e.g., ['stripe.com', 'vercel.com'])"
+      required: true
+
+    - name: funding_stage_filter
+      type: list
+      description: "Only return companies at these stages (e.g., ['Series A', 'Series B'])"
+      required: false
+
+    - name: min_funding_amount
+      type: integer
+      description: "Minimum total funding in USD"
+      default: 0
+
+    - name: founded_after
+      type: integer
+      description: "Only include companies founded after this year"
+      required: false
+
+    - name: browserbase_api_key
+      type: string
+      description: "Browserbase API key for web scraping"
+      required: true
+
+  outputs:
+    - name: companies
+      type: list
+      schema:
+        domain: string
+        name: string
+        crunchbase_url: string
+        description: "string | null"
+        founded_year: "integer | null"
+        employee_count: "string | null"
+        total_funding: "integer | null"
+        last_funding_round:
+          type: object
+          schema:
+            type: string
+            amount: integer
+            date: string
+            lead_investors: list
+        funding_rounds:
+          type: list
+          schema:
+            type: string
+            amount: integer
+            date: string
+        categories: list
+        headquarters: "string | null"
+        linkedin_url: "string | null"
+        twitter_url: "string | null"
+
+    - name: found_count
+      type: integer
+
+    - name: not_found_domains
+      type: list
+
+  requirements:
+    - Must use Browserbase for Crunchbase scraping (paid API alternative acceptable)
+    - Must handle Crunchbase's anti-scraping measures
+    - Rate limit to 1 request per 5 seconds minimum
+    - Parse funding amounts correctly (handle "M" and "B" suffixes)
+    - Extract all funding rounds, not just latest
+    - Handle company name variations (e.g., "Stripe, Inc." vs "Stripe")
+    - Return not_found_domains list for domains with no Crunchbase profile
+    - Cache company data for 30 days (funding info changes slowly)
+    - Must handle companies with no public funding data
+    - Log all Crunchbase URLs accessed
+
+  example_usage: |
+    from tools.crunchbase_company_scraper import scrape_companies
+    import os
+
+    domains = [
+        "linear.app",
+        "vercel.com",
+        "notion.so",
+        "figma.com",
+        "unknown-startup.io"
+    ]
+
+    result = scrape_companies(
+        company_domains=domains,
+        funding_stage_filter=["Series A", "Series B"],
+        min_funding_amount=5000000,
+        browserbase_api_key=os.environ["BROWSERBASE_API_KEY"]
+    )
+
+    print(f"Found {result['found_count']}/{len(domains)} companies")
+
+    for company in result['companies']:
+        if company['last_funding_round']:
+            round_info = company['last_funding_round']
+            print(f"{company['name']}: {round_info['type']} - ${round_info['amount']:,}")
+            print(f"  Lead investors: {', '.join(round_info['lead_investors'])}")
+
+    if result['not_found_domains']:
+        print(f"Not found: {result['not_found_domains']}")

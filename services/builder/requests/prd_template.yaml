@@ -1,0 +1,31 @@
+# PRD Template for Builder
+# Copy this to current_prd.yaml and fill in your tool requirements
+
+prd:
+  id: tool_unique_id           # Unique identifier
+  name: tool_name              # Will become the filename (tools/tool_name.py)
+  description: "Brief description of what the tool does"
+  requested_by: fullsend       # Who requested this tool (fullsend, orchestrator, manual)
+  priority: medium             # low, medium, high
+
+  inputs:
+    - name: param_name
+      type: string             # string, integer, float, boolean, list, dict
+      description: "What this parameter does"
+      required: true           # true or false
+      default: null            # Default value if not required
+
+  outputs:
+    - name: result_name
+      type: string             # Type of the output
+      description: "What this output contains"
+
+  requirements:
+    - "Requirement 1: What the tool must do"
+    - "Requirement 2: Error handling expectations"
+    - "Requirement 3: Any specific libraries or patterns"
+
+  example_usage: |
+    from tools.tool_name import tool_name
+    result = tool_name(param_name="value")
+    print(result["success"])

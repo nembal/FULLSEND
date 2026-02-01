@@ -15,8 +15,14 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 # Channel names for message routing
-CHANNEL_TO_AGENT = "fullsend:to_agent"
-CHANNEL_FROM_AGENT = "fullsend:from_agent"
+# Discord publishes raw messages here (Watcher subscribes)
+CHANNEL_TO_WATCHER = "fullsend:discord_raw"
+# Discord subscribes here for responses (Orchestrator/Watcher publish)
+CHANNEL_FROM_ORCHESTRATOR = "fullsend:from_orchestrator"
+
+# Legacy aliases for compatibility
+CHANNEL_TO_AGENT = CHANNEL_TO_WATCHER
+CHANNEL_FROM_AGENT = CHANNEL_FROM_ORCHESTRATOR
 
 
 class RedisBus:

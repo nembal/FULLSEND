@@ -1,0 +1,9 @@
+# Builder Requests Directory
+#
+# This directory holds incoming PRDs for Builder to process.
+#
+# Usage:
+#   - Place a PRD as `current_prd.yaml` for Builder to build
+#   - See `prd_template.yaml` for the expected format
+#   - When Builder processes a PRD, it builds the tool and commits
+#   - Safe default behavior when no PRD is present (Builder exits gracefully)

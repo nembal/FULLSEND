@@ -238,3 +238,46 @@ Inbound (to orchestrator): idea_submit, action_complete, command, config_update
     - Full integration testing (both adapters together)
   - Files changed: `services/discord/test_integration.py` (new)
 
+## Post-Build Review (2026-02-01)
+
+Code review and fixes applied to ensure production readiness:
+
+### Critical Fixes
+- **web_adapter.py**: Fixed `_connected` → `is_connected` (3 places) - was causing AttributeError
+- **pyproject.toml**: Fixed entry point path `main:main` → `services.discord.main:main`
+
+### Memory Leak Prevention
+- **discord_adapter.py**: Added `_max_reacted_messages` (1000) and `_max_pending_actions` (100) limits
+- Added cleanup logic to trim old entries when limits exceeded
+
+### Datetime Modernization
+- Updated all `datetime.utcnow()` → `datetime.now(UTC)` across:
+  - `messages.py`, `web_adapter.py`
+- Consistent UTC timestamps throughout the service
+
+### Channel Wiring Fix (Critical Integration)
+- **Problem**: Discord used different channel names than Watcher/Orchestrator
+- **Before**:
+  - Discord published to `fullsend:to_agent` (nobody listening)
+  - Discord subscribed to `fullsend:from_agent` (nobody publishing)
+- **After** (in `core/bus.py`):
+  - `CHANNEL_TO_WATCHER = "fullsend:discord_raw"` - Discord publishes here, Watcher subscribes
+  - `CHANNEL_FROM_ORCHESTRATOR = "fullsend:from_orchestrator"` - Orchestrator publishes here, Discord subscribes
+  - Legacy aliases maintained for code compatibility
+
+### Updated Message Flow
+```
+Discord ──► fullsend:discord_raw ──► Watcher ──► fullsend:to_orchestrator ──► Orchestrator
+   ▲                                    │                                          │
+   │                                    │                                          │
+   └────────────── fullsend:from_orchestrator ◄────────────────────────────────────┘
+```
+
+### Files Changed in Review
+- `services/discord/adapters/web_adapter.py`
+- `services/discord/core/bus.py`
+- `services/discord/core/__init__.py`
+- `services/discord/core/messages.py`
+- `services/discord/adapters/discord_adapter.py`
+- `services/discord/pyproject.toml`
+

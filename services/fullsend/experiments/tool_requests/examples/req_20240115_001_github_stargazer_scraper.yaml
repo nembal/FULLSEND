@@ -1,0 +1,83 @@
+tool_request:
+  id: req_20240115_001
+  name: github_stargazer_scraper
+  description: "Scrape users who starred a GitHub repo, extracting profile info including email, company, and bio"
+  priority: high
+  requested_by: fullsend
+  experiment_blocked: exp_20240115_github_stargazers
+
+  inputs:
+    - name: repo
+      type: string
+      description: "GitHub repo in owner/repo format (e.g., 'anthropics/claude')"
+      required: true
+
+    - name: limit
+      type: integer
+      description: "Maximum number of users to return"
+      default: 500
+
+    - name: since_date
+      type: string
+      description: "Only include users who starred after this ISO8601 date"
+      required: false
+
+    - name: github_token
+      type: string
+      description: "GitHub personal access token for API auth"
+      required: true
+
+  outputs:
+    - name: users
+      type: list
+      schema:
+        username: string
+        email: "string | null"
+        name: "string | null"
+        company: "string | null"
+        bio: "string | null"
+        location: "string | null"
+        twitter_username: "string | null"
+        followers: integer
+        public_repos: integer
+        starred_at: string
+
+    - name: total_found
+      type: integer
+
+    - name: has_more
+      type: boolean
+
+    - name: rate_limit_remaining
+      type: integer
+
+  requirements:
+    - Must use GitHub REST API v3 (api.github.com)
+    - Must handle rate limiting (5000 req/hr with token) with exponential backoff
+    - Must paginate using Link headers for repos with >100 stars
+    - Must extract email from user profile API endpoint
+    - If email not in profile, check user's public commits for email
+    - Return partial results if rate limited (don't lose progress)
+    - Cache user profiles for 24 hours to avoid duplicate API calls
+    - Log progress every 50 users processed
+    - Handle 404s gracefully (deleted accounts)
+
+  example_usage: |
+    from tools.github_stargazer_scraper import scrape_stargazers
+    import os
+
+    result = scrape_stargazers(
+        repo="anthropics/claude",
+        limit=500,
+        since_date="2024-01-01T00:00:00Z",
+        github_token=os.environ["GITHUB_TOKEN"]
+    )
+
+    print(f"Found {result['total_found']} stargazers")
+
+    for user in result['users']:
+        if user['email'] and user['company']:
+            # Check if company looks like a startup
+            if any(kw in (user['bio'] or '').lower()
+                   for kw in ['founder', 'cto', 'ceo', 'building']):
+                print(f"High-value lead: {user['name']} at {user['company']}")

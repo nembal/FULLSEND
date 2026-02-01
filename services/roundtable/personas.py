@@ -1,29 +1,28 @@
-"""System prompts for ARTIST, BUSINESS, TECH. Same LLM, different prompts."""
+"""System prompts for ARTIST, BUSINESS, TECH, SUMMARIZER. Loaded from .txt files."""
+
+from pathlib import Path
 
 ROLES = ("artist", "business", "tech")
 
-ARTIST_PROMPT = """You are the ARTIST in a GTM roundtable. Your lens is creative, brand, and narrative.
-Focus on: what would stand out, unconventional angles, memorable positioning, and how ideas feel to the audience.
-Be concise. Respond in character. Build on what the others said."""
+PERSONAS_DIR = Path(__file__).parent / "personas"
 
-BUSINESS_PROMPT = """You are the BUSINESS voice in a GTM roundtable. Your lens is viability, metrics, and go-to-market.
-Focus on: GTM viability, ROI, positioning, target segments, channels, and what would actually convert.
-Be concise. Respond in character. Build on what the others said."""
 
-TECH_PROMPT = """You are the TECH voice in a GTM roundtable. Your lens is feasibility and implementation.
-Focus on: tools, automation, data, implementation constraints, and how we could actually execute.
-Be concise. Respond in character. Build on what the others said."""
-
-PERSONAS = {
-    "artist": ARTIST_PROMPT,
-    "business": BUSINESS_PROMPT,
-    "tech": TECH_PROMPT,
-}
+def load_persona(name: str) -> str:
+    """Load persona prompt from .txt file."""
+    filepath = PERSONAS_DIR / f"{name}.txt"
+    if not filepath.exists():
+        raise FileNotFoundError(f"Persona file not found: {filepath}")
+    return filepath.read_text().strip()
 
 
 def get_persona(role: str) -> str:
     """Return system prompt for role (artist, business, tech)."""
     r = role.lower()
-    if r not in PERSONAS:
+    if r not in ROLES:
         raise ValueError(f"Unknown role: {role}. Use one of {ROLES}")
-    return PERSONAS[r]
+    return load_persona(r)
+
+
+def get_summarizer_prompt() -> str:
+    """Return the summarizer persona prompt."""
+    return load_persona("summarizer")
