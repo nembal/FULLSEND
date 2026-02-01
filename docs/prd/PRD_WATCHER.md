@@ -4,9 +4,52 @@
 
 **Role:** The receptionist — filters Discord noise, answers simple queries, escalates important stuff to Orchestrator.
 
-**Runtime:** Python daemon with Anthropic API
-**Model:** Claude Haiku (cheap, fast)
+**Runtime:** Python daemon with Google Gemini API
+**Model:** Gemini 2.0 Flash (cheap, fast, 1M context)
 **Container:** `fullsend-watcher`
+
+---
+
+## Model Setup: Gemini 2.0 Flash
+
+### Installation
+```bash
+pip install google-generativeai
+```
+
+### API Key
+Get from: https://aistudio.google.com/apikey
+
+### Environment
+```bash
+GOOGLE_API_KEY=your_api_key_here
+WATCHER_MODEL=gemini-2.0-flash-exp  # or gemini-2.0-flash when GA
+```
+
+### Basic Usage
+```python
+import google.generativeai as genai
+
+genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
+
+model = genai.GenerativeModel("gemini-2.0-flash-exp")
+
+response = model.generate_content(
+    "Classify this message: ...",
+    generation_config=genai.GenerationConfig(
+        temperature=0.1,  # Low temp for classification
+        max_output_tokens=500,
+    )
+)
+
+print(response.text)
+```
+
+### Why Gemini Flash?
+- **Cost:** ~$0.075/1M input tokens (10x cheaper than Haiku)
+- **Speed:** Sub-second responses
+- **Context:** 1M tokens (can hold lots of history if needed)
+- **Quality:** Excellent at classification tasks
 
 ---
 
@@ -59,7 +102,7 @@ services/watcher/
 
 ### Python Packages
 ```
-anthropic
+google-generativeai
 redis
 pydantic
 pydantic-settings
@@ -67,9 +110,9 @@ pydantic-settings
 
 ### Environment Variables
 ```
-ANTHROPIC_API_KEY=...
+GOOGLE_API_KEY=...
 REDIS_URL=redis://redis:6379
-WATCHER_MODEL=claude-3-haiku-20240307
+WATCHER_MODEL=gemini-2.0-flash-exp
 ```
 
 ---
@@ -118,6 +161,10 @@ async def process_message(msg: dict):
 ### Classification Logic (classifier.py)
 
 ```python
+import google.generativeai as genai
+
+genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
+
 class Classification(BaseModel):
     action: Literal["ignore", "answer", "escalate"]
     reason: str
@@ -132,13 +179,18 @@ async def classify(msg: dict) -> Classification:
         has_mention=msg.get("mentions_bot", False)
     )
 
-    response = await anthropic.messages.create(
-        model=WATCHER_MODEL,
-        max_tokens=500,
-        messages=[{"role": "user", "content": prompt}]
+    model = genai.GenerativeModel(WATCHER_MODEL)
+
+    response = await asyncio.to_thread(
+        model.generate_content,
+        prompt,
+        generation_config=genai.GenerationConfig(
+            temperature=0.1,
+            max_output_tokens=500,
+        )
     )
 
-    return parse_classification(response.content)
+    return parse_classification(response.text)
 ```
 
 ### Escalation Criteria
@@ -339,7 +391,7 @@ redis-cli SUBSCRIBE fullsend:from_orchestrator
 ## Error Handling
 
 ```python
-# Retry logic for Anthropic API
+# Retry logic for Gemini API
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
 async def classify_with_retry(msg):
     return await classify(msg)
@@ -377,7 +429,8 @@ CMD ["python", "-m", "services.watcher.main"]
 ## Notes for Builder
 
 - Keep it simple - Watcher should be fast and cheap
-- Haiku is sufficient - don't use a bigger model
+- Gemini Flash is perfect - fast, cheap, great at classification
 - When in doubt, escalate (better to over-escalate than miss important stuff)
 - Don't cache classifications - each message is unique
 - Log everything for debugging
+- Gemini has async support via `asyncio.to_thread()` wrapper

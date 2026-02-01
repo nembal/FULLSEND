@@ -5,8 +5,50 @@
 **Role:** The strategic manager — maintains context, prioritizes work, dispatches tasks to FULLSEND and Builder. The brain that decides WHAT to work on (not HOW).
 
 **Runtime:** Python daemon with Anthropic API (extended thinking)
-**Model:** Claude Sonnet with extended thinking
+**Model:** Claude Opus 4 with extended thinking (maximum reasoning power)
 **Container:** `fullsend-orchestrator`
+
+---
+
+## Model Choice: Maximum Thinking Power
+
+The Orchestrator is the strategic brain. It needs the best reasoning available.
+
+### Primary: Claude Opus 4 with Extended Thinking
+```python
+response = await anthropic.messages.create(
+    model="claude-opus-4-20250514",
+    max_tokens=16000,
+    thinking={
+        "type": "enabled",
+        "budget_tokens": 10000  # Let it think DEEPLY
+    },
+    messages=[{"role": "user", "content": prompt}]
+)
+```
+
+### Alternative: Gemini 2.0 Pro (Thinking)
+If you want to use Gemini for cost savings:
+```python
+import google.generativeai as genai
+
+model = genai.GenerativeModel("gemini-2.0-pro-exp")
+
+response = model.generate_content(
+    prompt,
+    generation_config=genai.GenerationConfig(
+        temperature=0.7,
+        max_output_tokens=8000,
+    )
+)
+```
+
+### Why Heavy Thinking?
+- Strategic decisions have high leverage
+- Wrong prioritization wastes resources
+- Context is complex (experiments + learnings + metrics)
+- Extended thinking = better reasoning chains
+- This is where "intelligence" matters most
 
 ---
 
@@ -87,7 +129,8 @@ aiofiles
 ```
 ANTHROPIC_API_KEY=...
 REDIS_URL=redis://redis:6379
-ORCHESTRATOR_MODEL=claude-sonnet-4-20250514
+ORCHESTRATOR_MODEL=claude-opus-4-20250514
+ORCHESTRATOR_THINKING_BUDGET=10000
 CONTEXT_PATH=/app/context
 ```
 

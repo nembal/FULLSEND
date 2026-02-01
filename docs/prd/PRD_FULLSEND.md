@@ -4,9 +4,43 @@
 
 **Role:** The creative strategist — designs experiments, defines success metrics, sets schedules. Has access to tools/skills it can use or request. This is where GTM ideas become executable experiment specs.
 
-**Runtime:** Python service that spawns Claude Code subprocess
-**Model:** Claude Sonnet/Opus (via Claude Code CLI)
+**Runtime:** Python service that spawns Claude Code in RALPH loops
+**Model:** Claude Code CLI (Sonnet/Opus) spawning more Claude Codes
 **Container:** `fullsend-brain`
+
+---
+
+## Architecture: RALPH Loops
+
+FULLSEND uses the **RALPH pattern** — a task loop where Claude Code iterates through tasks with persistent memory.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      FULLSEND Service                        │
+│                                                              │
+│  1. Receive experiment request from Orchestrator             │
+│  2. Create TASKS.md for this experiment                      │
+│  3. Create STATUS.md for context/memory                      │
+│  4. Spawn Claude Code in RALPH loop                          │
+│  5. Claude Code iterates: task → do → mark done → next       │
+│  6. Collect results, publish experiment spec                 │
+└─────────────────────────────────────────────────────────────┘
+
+RALPH Loop:
+┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
+│  Read    │────→│  Do      │────→│  Update  │────→│  Mark    │
+│ TASKS.md │     │  Task    │     │STATUS.md │     │  Done    │
+└──────────┘     └──────────┘     └──────────┘     └──────────┘
+      ↑                                                  │
+      └──────────────────────────────────────────────────┘
+                         (loop until all done)
+```
+
+### Why RALPH?
+- **Memory**: STATUS.md persists context between iterations
+- **Reliability**: Each task is atomic, can retry on failure
+- **Observability**: TASKS.md shows progress in real-time
+- **Composability**: Claude Code can spawn MORE Claude Codes for subtasks
 
 ---
 
@@ -117,66 +151,194 @@ async def handle_request(request: dict):
         await run_experiment_directly(request)
 ```
 
-### Claude Code Spawner (spawner.py)
+### RALPH Loop Spawner (spawner.py)
 
 ```python
 import subprocess
 import tempfile
 from pathlib import Path
+import shutil
 
+class RalphLoop:
+    """RALPH-style task loop for Claude Code."""
+
+    def __init__(self, work_dir: Path, max_iterations: int = 50):
+        self.work_dir = work_dir
+        self.max_iterations = max_iterations
+        self.tasks_file = work_dir / "TASKS.md"
+        self.status_file = work_dir / "STATUS.md"
+
+    def setup(self, tasks: list[str], initial_context: str):
+        """Initialize TASKS.md and STATUS.md."""
+        self.work_dir.mkdir(parents=True, exist_ok=True)
+
+        # Write TASKS.md
+        tasks_content = "# Tasks\n\n"
+        for i, task in enumerate(tasks, 1):
+            tasks_content += f"- [ ] TASK-{i:03d}: {task}\n"
+        self.tasks_file.write_text(tasks_content)
+
+        # Write STATUS.md
+        self.status_file.write_text(f"# Status (Memory)\n\n{initial_context}\n\n## Log\n")
+
+    def get_next_task(self) -> str | None:
+        """Get next uncompleted task."""
+        content = self.tasks_file.read_text()
+        for line in content.split("\n"):
+            if line.startswith("- [ ] TASK-"):
+                return line.split(":")[0].replace("- [ ] ", "").strip()
+        return None
+
+    async def run(self) -> str:
+        """Run the RALPH loop until all tasks complete."""
+
+        for iteration in range(self.max_iterations):
+            task_id = self.get_next_task()
+
+            if not task_id:
+                # All done!
+                return self.status_file.read_text()
+
+            print(f"RALPH iteration {iteration + 1}: {task_id}")
+
+            prompt = f"""You are completing task {task_id} from TASKS.md.
+
+Read TASKS.md to find your task.
+Read STATUS.md for context from previous tasks (memory).
+
+Do the task. When done:
+1. Update STATUS.md with what you did
+2. Mark task done: change `- [ ] {task_id}:` to `- [x] {task_id}:` in TASKS.md
+3. Output: **TASK_DONE**"""
+
+            # Spawn Claude Code for this iteration
+            result = subprocess.run(
+                [
+                    "claude",
+                    "-p", prompt,
+                    "--allowedTools", "Edit,Bash,Write,Read,Glob,Grep",
+                    "--dangerously-skip-permissions"
+                ],
+                cwd=self.work_dir,
+                capture_output=True,
+                text=True,
+                timeout=300,
+                env={**os.environ, "ANTHROPIC_API_KEY": ANTHROPIC_API_KEY}
+            )
+
+            if "TASK_DONE" not in result.stdout:
+                print(f"Warning: {task_id} may not have completed")
+
+            await asyncio.sleep(2)  # Brief pause between iterations
+
+        raise RuntimeError(f"Hit max iterations ({self.max_iterations})")
+
+async def spawn_ralph_loop(
+    tasks: list[str],
+    context: str,
+    work_dir: Path = None
+) -> str:
+    """Spawn a RALPH loop and return results."""
+
+    if work_dir is None:
+        work_dir = Path(tempfile.mkdtemp(prefix="fullsend_"))
+
+    try:
+        loop = RalphLoop(work_dir)
+        loop.setup(tasks, context)
+        return await loop.run()
+    finally:
+        # Cleanup temp dir (optional - might want to keep for debugging)
+        # shutil.rmtree(work_dir)
+        pass
+```
+
+### Simple Spawn (for quick tasks)
+
+```python
 async def spawn_claude_code(
     prompt: str,
     working_dir: Path = Path("/app"),
     timeout: int = 300
 ) -> str:
-    """Spawn Claude Code to do the actual work."""
+    """Spawn Claude Code for a single task (no loop)."""
 
-    # Write prompt to temp file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
-        f.write(prompt)
-        prompt_file = f.name
+    result = subprocess.run(
+        [
+            "claude",
+            "-p", prompt,
+            "--allowedTools", "Edit,Bash,Write,Read,Glob,Grep",
+            "--dangerously-skip-permissions"
+        ],
+        cwd=working_dir,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        env={**os.environ, "ANTHROPIC_API_KEY": ANTHROPIC_API_KEY}
+    )
 
-    try:
-        result = subprocess.run(
-            [
-                "claude",
-                "--model", FULLSEND_MODEL,
-                "--print",
-                "--dangerously-skip-permissions",  # YOLO mode for hackathon
-                "-f", prompt_file
-            ],
-            cwd=working_dir,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            env={
-                **os.environ,
-                "ANTHROPIC_API_KEY": ANTHROPIC_API_KEY,
-            }
-        )
+    if result.returncode != 0:
+        raise RuntimeError(f"Claude Code failed: {result.stderr}")
 
-        if result.returncode != 0:
-            raise RuntimeError(f"Claude Code failed: {result.stderr}")
-
-        return result.stdout
-
-    finally:
-        Path(prompt_file).unlink()
+    return result.stdout
 ```
 
 ### Experiment Design (experiment.py)
 
 ```python
 async def design_experiment(request: dict):
-    """Design an experiment spec using Claude Code."""
+    """Design an experiment spec using RALPH loop."""
 
-    # Load context
     idea = request["idea"]
     context = request.get("context", "")
     available_tools = await get_available_tools()
     recent_learnings = await get_tactical_learnings()
 
-    # Build prompt for Claude Code
+    # Break experiment design into RALPH tasks
+    tasks = [
+        "Research the target audience and validate the idea is feasible",
+        "Check available tools and identify what's needed",
+        "Design the experiment spec with hypothesis and metrics",
+        "Write the outreach template (actual copy, not placeholders)",
+        "Define success/failure criteria and schedule",
+        "Output final experiment YAML to experiment_spec.yaml"
+    ]
+
+    initial_context = f"""## Experiment Request
+{idea}
+
+## Context from Orchestrator
+{context}
+
+## Available Tools
+{format_tools(available_tools)}
+
+## Recent Learnings
+{format_learnings(recent_learnings)}
+"""
+
+    # Run RALPH loop
+    work_dir = Path(f"/tmp/fullsend/exp_{int(time.time())}")
+    result = await spawn_ralph_loop(tasks, initial_context, work_dir)
+
+    # Read the generated experiment spec
+    spec_file = work_dir / "experiment_spec.yaml"
+    if spec_file.exists():
+        experiment_spec = yaml.safe_load(spec_file.read_text())
+    else:
+        raise RuntimeError("RALPH loop did not produce experiment spec")
+
+    # ... rest of processing
+```
+
+### Alternative: Single-Shot Design (for simple experiments)
+
+For simple experiments, skip RALPH and use direct spawn:
+
+```python
+async def design_simple_experiment(request: dict):
+    """Design a simple experiment without RALPH loop."""
+
     prompt = f"""
 # Design an Experiment
 
@@ -605,11 +767,14 @@ CMD ["python", "-m", "services.fullsend.main"]
 
 ## Notes for Builder
 
-- Claude Code is the core — FULLSEND is mostly a wrapper that spawns it
-- The system prompt is critical for quality outputs
+- **RALPH loops are the core pattern** — FULLSEND spawns Claude Code in loops
+- TASKS.md = work to do, STATUS.md = memory between iterations
+- For complex experiments: use RALPH (multi-step, reliable)
+- For simple tasks: use direct spawn (single Claude Code call)
 - YAML parsing must be robust (Claude might output extra text)
 - Experiment IDs should be human-readable: `exp_20240115_github_stars`
 - Always validate experiment specs before saving
 - Tactical learnings go to Redis, not markdown files
-- Include actual email templates in experiments — no placeholders!
-- The hackathon needs real, runnable experiments
+- **Include actual email templates** — no placeholders!
+- Claude Code can spawn MORE Claude Codes for subtasks (nested loops)
+- Keep work_dir around for debugging failed experiments
