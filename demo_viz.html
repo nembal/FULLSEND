@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Demo workflow</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0f0f12;
+      --surface: #18181c;
+      --surface2: #1e1e24;
+      --text: #e4e4e7;
+      --text-muted: #a1a1aa;
+      --accent: #7c3aed;
+      --accent-dim: #5b21b6;
+      --plan: #3b82f6;
+      --improve: #8b5cf6;
+      --replan: #06b6d4;
+      --border: #27272a;
+      --success: #22c55e;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+      min-height: 100vh;
+    }
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 600;
+      margin: 0 0 0.5rem 0;
+      letter-spacing: -0.02em;
+    }
+    .serve-note {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      background: var(--surface2);
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      margin-bottom: 1.5rem;
+    }
+    .serve-note code { color: var(--accent); font-size: 0.9em; }
+    .serve-note a { color: var(--plan); text-decoration: none; }
+    .serve-note a:hover { text-decoration: underline; }
+    #error {
+      color: #f87171;
+      margin: 0 0 1rem 0;
+      font-size: 0.9rem;
+    }
+    .flow-section {
+      margin-bottom: 2rem;
+    }
+    .flow-section h3 {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin: 0 0 0.75rem 0;
+      color: var(--text-muted);
+    }
+    .flow-section.plan h3 { color: var(--plan); }
+    .flow-section.improve h3 { color: var(--improve); }
+    .flow-section.replan h3 { color: var(--replan); }
+    .flow-steps {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .flow-step {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.6rem 1rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+    .flow-step.pill { border-radius: 999px; }
+    .flow-step.hex { border-left: 3px solid var(--improve); }
+    .flow-arrow {
+      color: var(--text-muted);
+      font-size: 1rem;
+      padding: 0 0.25rem;
+    }
+    #stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .stat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.25rem;
+    }
+    .stat-value { font-size: 1.1rem; font-weight: 600; color: var(--text); }
+    #analyst-report {
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+    #analyst-report h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin: 0 0 0.75rem 0;
+      color: var(--text);
+    }
+    .report-body {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.65;
+      white-space: pre-wrap;
+    }
+    .report-body strong { color: var(--text); }
+    #wandb-current-run {
+      margin: 1rem 0;
+      padding: 0.75rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+    }
+    #wandb-current-run a { color: var(--plan); text-decoration: none; font-weight: 600; }
+    #wandb-current-run a:hover { text-decoration: underline; }
+    #wandb-recent-runs { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+    #wandb-recent-runs h2 { font-size: 1.1rem; font-weight: 600; margin: 0 0 0.75rem 0; color: var(--text); }
+    .wandb-run-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.5rem;
+      font-size: 0.875rem;
+    }
+    .wandb-run-card a { color: var(--plan); text-decoration: none; }
+    .wandb-run-card a:hover { text-decoration: underline; }
+    .wandb-run-meta { color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem; }
+  </style>
+</head>
+<body>
+  <h1>Demo workflow</h1>
+  <p class="serve-note" id="serve-note">To view: run <code>python -m http.server 8000</code> in this directory, then open <a href="http://localhost:8000/demo_viz.html">http://localhost:8000/demo_viz.html</a>.</p>
+  <p id="error">Loading…</p>
+  <div id="wandb-current-run"></div>
+  <div id="flow-output"></div>
+  <div id="stats"></div>
+  <div id="analyst-report"></div>
+  <div id="wandb-recent-runs"></div>
+
+  <script>
+    const NODES = {
+      roundtable_done: { label: 'Roundtable', type: 'pill' },
+      orchestrator_cycle_1_done: { label: 'Orchestrator Cycle 1', type: 'box' },
+      blocked_before: { label: 'Blocked Before', type: 'hex' },
+      analyzer_done: { label: 'Analyzer', type: 'box' },
+      builder_stub_done: { label: 'Builder Stub', type: 'box' },
+      requeue_done: { label: 'Requeue', type: 'box' },
+      orchestrator_cycle_2_done: { label: 'Orchestrator Cycle 2', type: 'box' },
+      blocked_after: { label: 'Blocked After', type: 'hex' },
+      analyst_report: { label: 'Analyst Report', type: 'pill' },
+      demo_end: { label: 'Demo End', type: 'pill' }
+    };
+    const PLAN_ORDER = ['roundtable_done', 'orchestrator_cycle_1_done'];
+    const IMPROVE_ORDER = ['blocked_before', 'analyzer_done', 'builder_stub_done', 'requeue_done'];
+    const REPLAN_ORDER = ['orchestrator_cycle_2_done', 'blocked_after', 'analyst_report', 'demo_end'];
+
+    function parseEvents(text) {
+      const events = [];
+      for (const line of text.split('\n')) {
+        const t = line.trim();
+        if (!t) continue;
+        try { events.push(JSON.parse(t)); } catch (_) {}
+      }
+      return events;
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    function buildFlowHtml(events) {
+      const has = new Set(events.map(e => e.event));
+      const step = (ev) => {
+        if (!has.has(ev)) return null;
+        const n = NODES[ev];
+        return n ? { key: ev, label: n.label, type: n.type } : null;
+      };
+      const band = (title, order) => {
+        const nodes = order.map(step).filter(Boolean);
+        if (nodes.length === 0) return '';
+        let html = '';
+        nodes.forEach((n, i) => {
+          const cls = 'flow-step ' + (n.type || 'box');
+          html += '<span class="' + cls + '">' + escapeHtml(n.label) + '</span>';
+          if (i < nodes.length - 1) html += '<span class="flow-arrow">→</span>';
+        });
+        return html;
+      };
+      const planHtml = band('Plan', PLAN_ORDER);
+      const improveHtml = band('Improve', IMPROVE_ORDER);
+      const replanHtml = band('Re-plan', REPLAN_ORDER);
+      let out = '';
+      if (planHtml) out += '<div class="flow-section plan"><h3>Plan</h3><div class="flow-steps">' + planHtml + '</div></div>';
+      if (improveHtml) out += '<div class="flow-section improve"><h3>Improve</h3><div class="flow-steps">' + improveHtml + '</div></div>';
+      if (replanHtml) out += '<div class="flow-section replan"><h3>Re-plan</h3><div class="flow-steps">' + replanHtml + '</div></div>';
+      return out || '<p class="flow-section">No workflow events in log.</p>';
+    }
+
+    function getStats(events) {
+      const by = {};
+      events.forEach(e => { by[e.event] = e; });
+      const wandbRun = events.filter(e => e.event === 'wandb_run').pop();
+      return {
+        tasksPublished: by.roundtable_done?.tasks_published ?? '—',
+        blockedBefore: by.blocked_before?.task_count ?? '—',
+        blockedItemBefore: by.blocked_before?.blocked_item_count ?? '—',
+        addedCount: by.builder_stub_done?.added_count ?? '—',
+        addedSlugs: (by.builder_stub_done?.added_slugs || []).join(', ') || '—',
+        requeued: by.requeue_done?.requeued ?? '—',
+        blockedAfter: by.blocked_after?.task_count ?? '—',
+        blockedItemAfter: by.blocked_after?.blocked_item_count ?? '—',
+        analystReport: by.analyst_report?.report ?? by.analyst_report?.report_preview ?? '',
+        wandbRunUrl: wandbRun?.run_url ?? '',
+        wandbRunId: wandbRun?.run_id ?? ''
+      };
+    }
+
+    function formatReport(text) {
+      if (!text) return '';
+      return escapeHtml(text)
+        .replace(/\n/g, '<br>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    }
+
+    async function run() {
+      const flowEl = document.getElementById('flow-output');
+      const statsEl = document.getElementById('stats');
+      const reportEl = document.getElementById('analyst-report');
+      const wandbCurrentEl = document.getElementById('wandb-current-run');
+      const wandbRecentEl = document.getElementById('wandb-recent-runs');
+      const errEl = document.getElementById('error');
+      if (!errEl) return;
+      errEl.textContent = '';
+      if (flowEl) flowEl.innerHTML = '';
+      if (statsEl) statsEl.innerHTML = '';
+      if (reportEl) reportEl.innerHTML = '';
+      if (wandbCurrentEl) wandbCurrentEl.innerHTML = '';
+      if (wandbRecentEl) wandbRecentEl.innerHTML = '';
+
+      let text;
+      try {
+        const r = await fetch('Demo_logs.txt');
+        if (!r.ok) throw new Error('File not found');
+        text = await r.text();
+      } catch (e) {
+        errEl.textContent = 'No demo logs yet. Run the demo first.';
+        return;
+      }
+      const events = parseEvents(text);
+      if (events.length === 0) {
+        errEl.textContent = 'No demo logs yet. Run the demo first.';
+        return;
+      }
+
+      if (flowEl) flowEl.innerHTML = buildFlowHtml(events);
+      const s = getStats(events);
+      statsEl.innerHTML = [
+        ['Tasks published', s.tasksPublished],
+        ['Blocked before', s.blockedBefore + ' task(s), ' + s.blockedItemBefore + ' item(s)'],
+        ['Tools added', s.addedCount + ' (' + s.addedSlugs + ')'],
+        ['Requeued', s.requeued],
+        ['Blocked after', s.blockedAfter + ' task(s), ' + s.blockedItemAfter + ' item(s)']
+      ].map(function (pair) {
+        return '<div class="stat"><div class="stat-label">' + escapeHtml(pair[0]) + '</div><div class="stat-value">' + escapeHtml(String(pair[1])) + '</div></div>';
+      }).join('');
+      if (s.analystReport) {
+        reportEl.innerHTML = '<h2>Analyst report (resolutions)</h2><div class="report-body">' + formatReport(s.analystReport) + '</div>';
+      }
+      if (s.wandbRunUrl && wandbCurrentEl) {
+        wandbCurrentEl.innerHTML = 'View this run in W&B: <a href="' + escapeHtml(s.wandbRunUrl) + '" target="_blank" rel="noopener">' + escapeHtml(s.wandbRunUrl) + '</a>';
+      }
+      try {
+        const wr = await fetch('wandb_runs.json');
+        if (wr.ok) {
+          const data = await wr.json();
+          const runs = data.runs || [];
+          if (runs.length > 0 && wandbRecentEl) {
+            let html = '<h2>Recent W&B runs</h2>';
+            runs.forEach(function (run) {
+              const url = run.url || '';
+              const name = run.name || run.id || '—';
+              const created = run.created_at ? new Date(run.created_at).toLocaleString() : '';
+              const meta = [run.blocked_before_count != null ? 'blocked before: ' + run.blocked_before_count : '', run.blocked_after_count != null ? 'blocked after: ' + run.blocked_after_count : '', run.tasks_published != null ? 'tasks: ' + run.tasks_published : ''].filter(Boolean).join(' · ');
+              html += '<div class="wandb-run-card">';
+              if (url) html += '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' + escapeHtml(name) + '</a>';
+              else html += escapeHtml(name);
+              if (created || meta) html += '<div class="wandb-run-meta">' + escapeHtml(created + (created && meta ? ' — ' : '') + meta) + '</div>';
+              html += '</div>';
+            });
+            wandbRecentEl.innerHTML = html;
+          }
+        }
+      } catch (_) {}
+    }
+
+    function go() {
+      run().catch(function (e) {
+        var err = document.getElementById('error');
+        if (err) err.textContent = 'Error: ' + (e.message || String(e));
+        console.error(e);
+      });
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', go);
+    } else {
+      go();
+    }
+  </script>
+</body>
+</html>

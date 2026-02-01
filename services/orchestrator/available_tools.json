@@ -1,0 +1,22 @@
+[
+  {
+    "name": "browser_base",
+    "description": "Browser automation (Browserbase or similar). Headless browser for web scraping, form filling, and navigation.",
+    "constraints": "No login/session persistence; each run is a fresh browser. Use for public pages, form submissions, screenshots."
+  },
+  {
+    "name": "discord_agent",
+    "description": "Discord integration. Post messages to channels, read channel history, manage reactions, send DMs.",
+    "constraints": "Requires Discord bot token and guild/channel IDs. Use for community updates, announcements, and listening to ideas channels."
+  },
+  {
+    "name": "gmail_agent",
+    "description": "Gmail API integration. Send and read emails, search inbox, manage labels, draft messages.",
+    "constraints": "Requires OAuth or service account. Use for outreach, drip campaigns, and email-based notifications."
+  },
+  {
+    "name": "linkedin_agent",
+    "description": "LinkedIn automation. Post updates, view connections, send connection requests or InMails (within API limits).",
+    "constraints": "Subject to LinkedIn API/ToS limits. Use for B2B outreach and thought leadership posts."
+  }
+]

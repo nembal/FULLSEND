@@ -4,7 +4,7 @@ ARTIST, BUSINESS, and TECH agents communicate over a shared transcript to genera
 
 ## Run (only the roundtable)
 
-From repo root, using the **weavehacks** conda env:
+From repo root, using the **weave_hacks** conda env:
 
 ```bash
 # One-liner (no need to activate conda yourself):
@@ -14,7 +14,7 @@ From repo root, using the **weavehacks** conda env:
 Or manually:
 
 ```bash
-conda activate weavehacks
+conda activate weave_hacks
 # Set WANDB_KEY or OPENAI_API_KEY (e.g. in .env), then:
 python -m services.roundtable "Topic: What GTM channels should we try next?"
 ```

@@ -31,7 +31,7 @@ The **roundtable** is an **AI idea source** for the Fullsend GTM system. Three p
 | **personas.py** | `ROLES`, `PERSONAS`, `get_persona(role)` — system prompts for ARTIST, BUSINESS, TECH. Same LLM, different prompts. |
 | **runner.py** | `run_roundtable(topic, max_rounds, seed_context)` — loop: for each round, for each role, build messages, call LLM, append to transcript; then **summarizer** call: 3–5 actionable tasks (agent-executable, cost-conscious, max 10–15 lines), "Do this first/next/..." format. Returns `{"transcript": [...], "summary": "..."}`. Uses `weave.init(...)` and `@weave.op` on `run_roundtable`. |
 | **__main__.py** | CLI: reads topic from argv, `ROUNDTABLE_MAX_ROUNDS` from env, calls `run_roundtable`, prints transcript. |
-| **README.md** | User-facing run instructions (conda weavehacks, `run_roundtable.sh`). |
+| **README.md** | User-facing run instructions (conda weave_hacks, `run_roundtable.sh`). |
 | **AGENTS.md** | This file — for agents/humans to understand the roundtable. |
 
 ---
@@ -43,6 +43,7 @@ The **roundtable** is an **AI idea source** for the Fullsend GTM system. Three p
 3. **Per turn**: For role in (ARTIST, BUSINESS, TECH), messages = `[SystemMessage(persona), HumanMessage(initial), ... one HumanMessage per prior transcript entry formatted as "[ROLE] content", HumanMessage("Your turn as ROLE. Reply in character.")]`. Then `llm.invoke(messages)`; append `{"role": role, "content": response}` to transcript.
 4. **Summarizer**: One LLM call: output 3–5 actionable tasks for AI agents (autonomous, cost-conscious, max 10–15 lines), format "Do this first: ... Do this next: ..." etc., no preamble. Same LLM.
 5. **Output**: `{"transcript": list of {"role", "content"}, "summary": "Do this first: ... Do this next: ..." }` (3–5 tasks, ≤10–15 lines).
+6. **Orchestrator queue**: If `RABBITMQ_URL` is set, the roundtable parses the summary into individual tasks and publishes each to the RabbitMQ orchestrator queue (`services/orchestrator_queue.py`). The orchestrator agent (later) consumes from that queue and runs tasks. If RabbitMQ is unavailable or not configured, the roundtable still returns transcript and summary; publish failure is logged and ignored.
 
 ---
 
@@ -56,8 +57,8 @@ The **roundtable** is an **AI idea source** for the Fullsend GTM system. Three p
 
 ## How to Run
 
-- **Recommended**: From repo root, `./run_roundtable.sh "Topic: your GTM idea or question"`. The script uses conda env **weavehacks** (`conda run -n weavehacks python -m services.roundtable ...`).
-- **Manual**: `conda activate weavehacks`, then from repo root: `python -m services.roundtable "Topic: ..."`.
+- **Recommended**: From repo root, `./run_roundtable.sh "Topic: your GTM idea or question"`. The script uses conda env **weave_hacks** (`conda run -n weave_hacks python -m services.roundtable ...`).
+- **Manual**: `conda activate weave_hacks`, then from repo root: `python -m services.roundtable "Topic: ..."`.
 - **Programmatic**: `from services.roundtable.runner import run_roundtable; result = run_roundtable("Topic: ...", max_rounds=2, seed_context=None)`; `result["transcript"]`, `result["summary"]`.
 
 ---
@@ -71,7 +72,7 @@ Edit [personas.py](personas.py): `ARTIST_PROMPT`, `BUSINESS_PROMPT`, `TECH_PROMP
 ## Dependencies
 
 - Root [pyproject.toml](../../pyproject.toml): `langchain-openai`, `langchain-core`, `python-dotenv`, `weave`. The roundtable has no separate package; it uses root deps.
-- Run with **weavehacks** conda env so Weave and LangChain are available.
+- Run with **weave_hacks** conda env so Weave and LangChain are available.
 
 ---
 
@@ -79,4 +80,5 @@ Edit [personas.py](personas.py): `ARTIST_PROMPT`, `BUSINESS_PROMPT`, `TECH_PROMP
 
 - **VISION.md**: Roundtable is an “Idea Source” that feeds the Orchestrator; it is not the orchestrator or executor.
 - **Redis agent** ([services/redis/redis_agent.py](../redis/redis_agent.py)): Separate service; same LLM config (W&B) but different role (GTM orchestrator with Redis MCP tools). No shared code except the same env vars for the LLM.
+- **Orchestrator queue**: [services/orchestrator_queue.py](../orchestrator_queue.py) — RabbitMQ queue `fullsend.orchestrator.tasks`. Roundtable publishes each parsed task (Do this first/next/…) as a JSON message; orchestrator (later) consumes and runs. Env: `RABBITMQ_URL`, `ORCHESTRATOR_QUEUE_NAME`.
 - **Future**: Optional one-time Redis seed before the roundtable (fetch learnings/hypotheses once, pass as `seed_context`); no Redis during the loop.

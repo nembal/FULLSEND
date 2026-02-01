@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agent dashboard</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⏱</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0f0f12;
+      --surface: #18181c;
+      --surface2: #1e1e24;
+      --text: #e4e4e7;
+      --text-muted: #a1a1aa;
+      --accent: #7c3aed;
+      --border: #27272a;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+      min-height: 100vh;
+    }
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 600;
+      margin: 0 0 0.5rem 0;
+      letter-spacing: -0.02em;
+    }
+    .serve-note {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      background: var(--surface2);
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      margin-bottom: 1.5rem;
+    }
+    .serve-note code { color: var(--accent); font-size: 0.9em; }
+    #error {
+      color: #f87171;
+      margin: 0 0 1rem 0;
+      font-size: 0.9rem;
+    }
+    .section-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin: 1.5rem 0 0.75rem 0;
+      color: var(--text-muted);
+    }
+    .table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+    }
+    th, td {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      font-weight: 600;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    tr:last-child td { border-bottom: none; }
+    td.agent-name { font-weight: 500; color: var(--text); }
+    td.num { font-variant-numeric: tabular-nums; text-align: right; }
+    .bars {
+      margin-top: 1rem;
+    }
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+    .bar-label {
+      width: 120px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      flex-shrink: 0;
+    }
+    .bar-track {
+      flex: 1;
+      height: 20px;
+      background: var(--surface2);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 6px;
+      min-width: 2px;
+      transition: width 0.3s ease;
+    }
+    .bar-fill.roundtable { background: #3b82f6; }
+    .bar-fill.orchestrator { background: #8b5cf6; }
+    .bar-fill.analyzer { background: #06b6d4; }
+    .bar-fill.builder { background: #22c55e; }
+    .bar-value {
+      width: 56px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+    .empty-state {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      padding: 1.5rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>Agent dashboard</h1>
+  <p class="serve-note">Basic stats from the demo loop: how many times each agent ran and total time. Run <code>python dashboard_api.py</code> then open <a href="http://127.0.0.1:8050/agent_dashboard.html">http://127.0.0.1:8050/agent_dashboard.html</a>. Data is served by the API from <code>Demo_logs.txt</code>.</p>
+  <p id="error"></p>
+  <p id="refresh-row" style="margin-top: 0.5rem;">
+    <button id="refresh-btn" type="button" style="padding: 0.4rem 0.75rem; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 0.875rem; cursor: pointer;">Refresh</button>
+    <label style="margin-left: 0.75rem; font-size: 0.85rem; color: var(--text-muted);">
+      <input type="checkbox" id="auto-refresh" /> Auto-refresh every 5s
+    </label>
+  </p>
+  <div class="section-title">Runs and duration</div>
+  <div class="table-wrap">
+    <table id="agent-table">
+      <thead>
+        <tr>
+          <th>Agent</th>
+          <th class="num"># Runs</th>
+          <th class="num">Total time (s)</th>
+          <th class="num">Avg (s)</th>
+        </tr>
+      </thead>
+      <tbody id="agent-tbody"></tbody>
+    </table>
+    <div id="empty-state" class="empty-state" style="display: none;">No agent_run events yet. Run <code>python run_demo.py "Topic: …"</code> to record timing.</div>
+  </div>
+  <div class="section-title">Total time by agent</div>
+  <div class="bars" id="bars"></div>
+
+  <script>
+    function render(data) {
+      const agents = data.agents || [];
+      const tbody = document.getElementById('agent-tbody');
+      const emptyState = document.getElementById('empty-state');
+      const barsEl = document.getElementById('bars');
+      tbody.innerHTML = '';
+      barsEl.innerHTML = '';
+
+      if (agents.length === 0) {
+        emptyState.style.display = 'block';
+        return;
+      }
+      emptyState.style.display = 'none';
+
+      const maxTotal = Math.max(...agents.map(a => a.total_sec), 1);
+
+      for (const a of agents) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="agent-name">${a.label}</td>
+          <td class="num">${a.count}</td>
+          <td class="num">${a.total_sec.toFixed(1)}</td>
+          <td class="num">${a.avg_sec.toFixed(2)}</td>
+        `;
+        tbody.appendChild(tr);
+
+        const barRow = document.createElement('div');
+        barRow.className = 'bar-row';
+        const pct = (a.total_sec / maxTotal) * 100;
+        barRow.innerHTML = `
+          <span class="bar-label">${a.label}</span>
+          <div class="bar-track"><div class="bar-fill ${a.agent}" style="width: ${pct}%"></div></div>
+          <span class="bar-value">${a.total_sec.toFixed(1)}s</span>
+        `;
+        barsEl.appendChild(barRow);
+      }
+    }
+
+    async function load() {
+      const errEl = document.getElementById('error');
+      errEl.textContent = 'Loading…';
+      try {
+        const r = await fetch('/api/agent-stats');
+        if (!r.ok) throw new Error('API returned ' + r.status);
+        const data = await r.json();
+        if (data.error) throw new Error(data.error);
+        render(data);
+        errEl.textContent = '';
+      } catch (e) {
+        errEl.textContent = e.message || 'Failed to load. Start the API: python dashboard_api.py';
+        render({ agents: [] });
+      }
+    }
+
+    const refreshBtn = document.getElementById('refresh-btn');
+    const autoRefreshCb = document.getElementById('auto-refresh');
+    refreshBtn.addEventListener('click', load);
+
+    let refreshInterval = null;
+    autoRefreshCb.addEventListener('change', function() {
+      if (this.checked) {
+        refreshInterval = setInterval(load, 5000);
+      } else {
+        if (refreshInterval) clearInterval(refreshInterval);
+        refreshInterval = null;
+      }
+    });
+
+    load();
+  </script>
+</body>
+</html>
