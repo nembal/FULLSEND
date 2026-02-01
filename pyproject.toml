@@ -1,0 +1,39 @@
+[project]
+name = "fullsend"
+version = "0.1.0"
+description = "Autonomous GTM agent that ships ideas continuously"
+requires-python = ">=3.11"
+readme = "README.md"
+
+# Root package has no direct dependencies - services define their own
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "ruff>=0.1.0",
+]
+
+[tool.uv]
+# Define workspace members - each service is a package
+package = false
+
+[tool.uv.workspace]
+members = ["services/*"]
+
+[tool.uv.sources]
+# Allow workspace packages to depend on each other
+fullsend-discord = { workspace = true }
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["services"]

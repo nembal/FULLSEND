@@ -1,0 +1,240 @@
+# RALPH Status (Memory)
+
+This file is shared memory between task iterations. Keep it short and current.
+
+## Project Context
+
+- **Building**: Discord Communication Service for Fullsend GTM agent
+- **PRD location**: `~/.claude/plans/unified-weaving-lovelace.md` (also see VISION.md for overall architecture)
+- **Tech stack**: Python, discord.py, FastAPI, Redis, Pydantic
+- **Target folder**: `services/discord/`
+
+## Key Architecture Decisions
+
+- Discord + Web are adapters sharing a Message Core
+- Redis pub/sub connects to orchestrator (separate service)
+- ENV var controls which adapters run (discord/web/both)
+- Bot is proactive (posts updates without being asked)
+- Bot reacts with emoji in listening channels, posts text in status channel
+- Action requests use reactions for human completion
+
+## Message Types (from PRD)
+
+Outbound (from orchestrator): status_update, action_request, idea_ack, learning_share, win_alert, idea_request, error
+Inbound (to orchestrator): idea_submit, action_complete, command, config_update
+
+## Decisions
+
+- Build from scratch with discord.py (not using template)
+- Hybrid interaction: slash commands + ambient listening
+- Specific channels only for listening (not all channels)
+
+## Log
+
+- Initial task list created from PRD (17 tasks)
+- TASK-001: Set up project structure
+  - Created `services/discord/` with subfolders: core/, adapters/, handlers/, templates/
+  - Created `pyproject.toml` with deps: discord.py, fastapi, redis, pydantic, pydantic-settings, uvicorn, python-dotenv, websockets
+  - Created `.env.example` with: DISCORD_TOKEN, DISCORD_GUILD_ID, LISTENING_CHANNELS, STATUS_CHANNEL, REDIS_URL, ENV, WEB_PORT
+  - Created empty `__init__.py` in all packages
+- TASK-002: Create config module
+  - Created `services/discord/config.py` using Pydantic Settings
+  - All env vars: DISCORD_TOKEN, DISCORD_GUILD_ID, LISTENING_CHANNELS, STATUS_CHANNEL, REDIS_URL, ENV, WEB_PORT
+  - Added validation for required fields (discord_token, discord_guild_id)
+  - Added helper properties: listening_channels_list, should_run_discord, should_run_web
+  - ENV type is Literal["discord", "web", "both"] for type safety
+- TASK-003: Create message models
+  - Created `services/discord/core/messages.py` with Pydantic models
+  - Added enum types: MessagePriority, AgentMessageType, HumanMessageType, ActionType
+  - AgentMessage: type, payload, timestamp, priority (with defaults)
+  - ActionRequest: id (auto-generated uuid), description, action_type, details, assignee, deadline
+  - HumanMessage: type, payload, source, user_id, timestamp
+  - IdeaSubmission: content, source_channel, submitted_by, context
+- TASK-004: Create Redis bus wrapper
+  - Created `services/discord/core/bus.py` with async Redis pub/sub
+  - RedisBus class with: connect(), disconnect(), publish(), subscribe(), unsubscribe()
+  - Auto-serializes Pydantic models and dicts to JSON for publish
+  - Background listener task dispatches messages to registered callbacks
+  - Graceful connection error handling with logging
+  - Channel constants: CHANNEL_TO_AGENT (`fullsend:to_agent`), CHANNEL_FROM_AGENT (`fullsend:from_agent`)
+  - Convenience functions: publish_to_agent(), subscribe_from_agent()
+- TASK-005: Create basic Discord bot
+  - Created `services/discord/adapters/discord_adapter.py`
+  - DiscordAdapter class wrapping discord.py commands.Bot
+  - Intents configured: messages, guilds, reactions, message_content
+  - Event handlers: on_ready (logs bot info, syncs slash commands), on_disconnect, on_resumed
+  - Methods: start(), stop(), run()
+  - Async helper function: run_discord_adapter()
+- TASK-006: Add core slash commands
+  - Added `paused` state to DiscordAdapter class
+  - Added `_register_commands()` method with three slash commands:
+    - `/status` - returns agent status (running or paused)
+    - `/pause` - sets paused state, confirms with message
+    - `/go` - resumes agent, confirms with message
+  - Commands use `@self.bot.tree.command()` decorator for slash commands
+  - Commands log user actions and provide feedback with emoji indicators
+- TASK-007: Add /idea command
+  - Added `/idea <text>` slash command using `@app_commands.describe` decorator
+  - Creates IdeaSubmission from input with context (username, guild_id, channel_name)
+  - Wraps IdeaSubmission in HumanMessage with type=IDEA_SUBMIT
+  - Publishes to Redis bus via `publish_to_agent()` if connected
+  - Falls back to offline mode (local logging only) if Redis not connected
+  - Responds with 🎯 confirmation emoji and quoted text
+  - Added redis_bus parameter to DiscordAdapter and run_discord_adapter
+  - Files changed: `services/discord/adapters/discord_adapter.py`
+- TASK-008: Add channel listening
+  - Added `on_message` event handler in `_register_events()`
+  - Filters out bot messages (checks `message.author.bot`)
+  - Only processes messages from channels in `listening_channels_list` config
+  - Ignores empty messages
+  - Logs detected ideas with channel, author, and truncated content (100 chars)
+  - Calls `process_commands()` to support any prefix commands
+  - Files changed: `services/discord/adapters/discord_adapter.py`
+- TASK-009: Add emoji reactions
+  - Added `idea_react_emoji` config setting to `config.py` (default: 🎯)
+  - Added `IDEA_REACT_EMOJI` to `.env.example`
+  - Added `reacted_messages` set to DiscordAdapter to track reacted message IDs
+  - Updated `on_message` handler to react with emoji when idea detected
+  - No text responses in listening channels, only emoji reactions
+  - Duplicate reaction prevention via reacted_messages tracking
+  - Files changed: `services/discord/config.py`, `services/discord/adapters/discord_adapter.py`, `services/discord/.env.example`
+- TASK-010: Add action request handling
+  - Added `pending_actions` dict to track message_id -> action_id mapping
+  - Added `action_complete_emoji` (✅) and `action_reject_emoji` (❌) for reactions
+  - Added `_handle_agent_message()` method to process incoming Redis messages
+  - Added `_post_action_request()` method to format and post action requests to status channel
+  - Added `_subscribe_to_agent_messages()` method to subscribe to `fullsend:from_agent` channel
+  - Subscribes to Redis on `on_ready` event
+  - Added `on_reaction_add` event handler to detect completion/rejection
+  - Publishes `action_complete` HumanMessage to Redis with action_id, status, user info
+  - Replies to action message when completed/rejected
+  - Removes from pending_actions after completion
+  - Files changed: `services/discord/adapters/discord_adapter.py`
+- TASK-011: Create main entry point
+  - Created `services/discord/main.py` with ServiceRunner class
+  - Loads config and checks ENV mode (discord/web/both)
+  - Connects to Redis on startup (graceful fallback to offline mode)
+  - Starts Discord adapter if ENV is "discord" or "both"
+  - Web adapter placeholder (waits for shutdown) if ENV is "web" or "both"
+  - Runs both adapters concurrently when ENV is "both"
+  - Graceful shutdown with signal handlers (SIGINT, SIGTERM)
+  - Cleans up Discord adapter and Redis on shutdown
+  - Files changed: `services/discord/main.py` (new file)
+- TASK-012: Create FastAPI web adapter
+  - Created `services/discord/adapters/web_adapter.py` with WebAdapter class
+  - Endpoints implemented:
+    - `GET /` - Returns service info and docs link
+    - `GET /api/status` - Returns current status (running/paused, mode, redis connection, uptime)
+    - `GET /api/feed` - Returns recent activity feed (deque with max 100 items)
+    - `POST /api/command` - Executes commands (pause, go, status, idea)
+  - Added CORS middleware allowing all origins
+  - Pydantic models: CommandRequest, StatusResponse, FeedItem, FeedResponse
+  - `add_feed_item()` method for adding activity items
+  - `create_web_app()` factory function
+  - Updated `services/discord/main.py`:
+    - Import uvicorn and web_adapter
+    - Added web_adapter attribute to ServiceRunner
+    - Replaced placeholder with actual uvicorn server startup
+  - Files changed: `services/discord/adapters/web_adapter.py` (new), `services/discord/main.py`
+- TASK-013: Add WebSocket support
+  - Added `ConnectionManager` class to manage WebSocket connections
+    - `connect()` - Accept and track new connections
+    - `disconnect()` - Remove connections
+    - `broadcast()` - Send messages to all connected clients with auto-cleanup of stale connections
+    - Thread-safe with asyncio.Lock
+  - Added `/ws` WebSocket endpoint for real-time updates
+    - Clients connect to receive live updates from Redis
+    - Supports ping/pong for keepalive
+  - Added `_ensure_redis_subscription()` - Lazy subscription to Redis `fullsend:from_agent` channel
+  - Added `_handle_redis_message()` - Parses Redis messages, adds to feed, broadcasts to WebSocket clients
+  - Added `broadcast_message()` public method for external broadcasting
+  - Added `websocket_client_count` property
+  - Files changed: `services/discord/adapters/web_adapter.py`
+- TASK-014: Create dashboard template
+  - Created `services/discord/templates/dashboard.html` with:
+    - Header with logo and status bar (agent status, WebSocket connection, uptime)
+    - Live feed section showing real-time messages with color-coded types
+    - Control panel with Go/Pause buttons
+    - Idea submission textarea with Ctrl+Enter shortcut
+    - Connection info card (Redis status, mode)
+  - JavaScript WebSocket client:
+    - Auto-connects and reconnects on disconnect (3s delay)
+    - Receives and displays messages from Redis via `/ws` endpoint
+    - Sends commands via POST `/api/command`
+    - Polls status every 5s, updates uptime every 1s
+    - Fetches initial feed on load
+    - XSS protection via HTML escaping
+  - CSS styling:
+    - Dark theme (#1a1a2e background, #e94560 accent)
+    - Responsive grid layout (collapses on mobile)
+    - Status indicators with pulse animation
+    - Feed items with slide-in animation and type-based border colors
+    - Gradient buttons with hover effects
+  - Updated `web_adapter.py`:
+    - Changed `GET /` to serve dashboard.html via HTMLResponse
+    - Added `GET /api/info` for JSON service metadata
+    - Added `TEMPLATES_DIR` constant for template path
+  - Files changed: `services/discord/templates/dashboard.html` (new), `services/discord/adapters/web_adapter.py`
+- TASK-015: Wire up Redis to both adapters
+  - Created `services/discord/core/router.py` with `MessageRouter` class
+    - Centralizes Redis subscriptions for both adapters
+    - `register_handler()` / `unregister_handler()` for adding/removing handlers
+    - `start()` / `stop()` for lifecycle management
+    - `publish()` for sending messages to to_agent channel
+    - Dispatches messages to all registered handlers concurrently
+  - Updated `discord_adapter.py`:
+    - Added `message_router` parameter to `DiscordAdapter` and `run_discord_adapter()`
+    - `_subscribe_to_agent_messages()` now prefers router, falls back to direct subscription
+  - Updated `web_adapter.py`:
+    - Added `message_router` parameter to `WebAdapter` and `create_web_app()`
+    - `_ensure_redis_subscription()` now prefers router, falls back to direct subscription
+    - Added `init()` method for early Redis subscription (before WebSocket clients connect)
+  - Updated `main.py`:
+    - Creates `MessageRouter` after Redis connects
+    - Passes router to both adapters
+    - Starts router before adapters, stops router on shutdown
+    - Calls `web_adapter.init()` to ensure early subscription
+  - Updated `core/__init__.py` to export `MessageRouter` and all core classes
+  - Created `services/discord/test_roundtrip.py`:
+    - Tests orchestrator -> adapters message flow (from_agent channel)
+    - Tests adapters -> orchestrator message flow (to_agent channel)
+    - Verifies multiple handlers receive messages
+    - Tests multiple message types
+  - Files changed: `services/discord/core/router.py` (new), `services/discord/core/__init__.py`, `services/discord/adapters/discord_adapter.py`, `services/discord/adapters/web_adapter.py`, `services/discord/main.py`, `services/discord/test_roundtrip.py` (new)
+- TASK-016: Add proactive status posting
+  - Added rate limiting for status posts (max 1 per 5 seconds) via `_last_status_post_time` and `_status_rate_limit_seconds` attributes
+  - Added `_can_post_status()` method to check rate limiting
+  - Added `_post_status_update()` method to post formatted messages to STATUS_CHANNEL
+  - Updated `_handle_agent_message()` to dispatch `status_update`, `learning_share`, `win_alert` types to `_post_status_update()`
+  - Message formatting:
+    - `status_update`: 📊 emoji, looks for "message" or "status" in payload
+    - `learning_share`: 🧠 emoji, looks for "insight" or "message" in payload
+    - `win_alert`: 🎉 emoji, looks for "achievement" or "message" in payload
+  - All messages include formatted timestamp (YYYY-MM-DD HH:MM:SS UTC)
+  - Rate-limited messages are logged at debug level and skipped
+  - Files changed: `services/discord/adapters/discord_adapter.py`
+- TASK-017: Integration test script
+  - Created `services/discord/test_integration.py` comprehensive integration test script
+  - Redis tests:
+    - `test_redis_connection()` - verifies Redis connectivity
+    - `test_pubsub_roundtrip()` - tests from_agent channel pub/sub
+    - `test_to_agent_channel()` - tests to_agent channel (adapter -> orchestrator)
+  - Web API tests:
+    - `test_web_api_status()` - tests GET /api/status endpoint
+    - `test_web_api_feed()` - tests GET /api/feed endpoint
+    - `test_web_api_commands()` - tests POST /api/command (pause, go, status, idea)
+    - `test_websocket_connection()` - tests WebSocket ping/pong
+    - `test_websocket_receives_redis()` - verifies WebSocket receives Redis messages
+  - Mock message generators for all agent message types:
+    - `create_status_update()`, `create_learning_share()`, `create_win_alert()`
+    - `create_action_request()`, `create_idea_ack()`
+  - Command-line interface:
+    - `--web-url` flag to test web adapter at specific URL
+    - `--send-mock` flag to send mock messages for manual testing
+  - Detailed manual test steps documented in comments for:
+    - Redis message flow testing
+    - Discord bot testing (slash commands, channel listening, reactions)
+    - Web dashboard testing (controls, idea submission, live feed)
+    - Full integration testing (both adapters together)
+  - Files changed: `services/discord/test_integration.py` (new)
+

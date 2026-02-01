@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fullsend Dashboard</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background-color: #1a1a2e;
+            color: #eaeaea;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%);
+            border-bottom: 1px solid #0f3460;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #e94560;
+        }
+
+        .logo span {
+            color: #eaeaea;
+        }
+
+        /* Status Bar */
+        .status-bar {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.running {
+            background-color: #4ade80;
+            box-shadow: 0 0 8px #4ade80;
+        }
+
+        .status-indicator.paused {
+            background-color: #fbbf24;
+            box-shadow: 0 0 8px #fbbf24;
+            animation: none;
+        }
+
+        .status-indicator.disconnected {
+            background-color: #ef4444;
+            box-shadow: 0 0 8px #ef4444;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Main Content */
+        main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 1.5rem;
+            padding: 1.5rem;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* Feed Section */
+        .feed-section {
+            background: #16213e;
+            border-radius: 12px;
+            border: 1px solid #0f3460;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .section-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #0f3460;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .feed-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        .feed-item {
+            background: #1a1a2e;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            border-left: 3px solid #0f3460;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .feed-item.status_update { border-left-color: #4ade80; }
+        .feed-item.action_request { border-left-color: #e94560; }
+        .feed-item.idea_submit { border-left-color: #fbbf24; }
+        .feed-item.learning_share { border-left-color: #60a5fa; }
+        .feed-item.win_alert { border-left-color: #a78bfa; }
+
+        .feed-item-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-size: 0.8rem;
+            color: #9ca3af;
+        }
+
+        .feed-item-type {
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+        }
+
+        .feed-item-content {
+            color: #eaeaea;
+            line-height: 1.5;
+        }
+
+        .feed-empty {
+            text-align: center;
+            color: #6b7280;
+            padding: 3rem;
+        }
+
+        /* Controls Section */
+        .controls-section {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .control-card {
+            background: #16213e;
+            border-radius: 12px;
+            border: 1px solid #0f3460;
+            padding: 1.5rem;
+        }
+
+        .control-card h3 {
+            margin-bottom: 1rem;
+            font-size: 1rem;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        button {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .btn-go {
+            background: linear-gradient(135deg, #4ade80, #22c55e);
+            color: #1a1a2e;
+        }
+
+        .btn-go:hover {
+            box-shadow: 0 4px 12px rgba(74, 222, 128, 0.4);
+        }
+
+        .btn-pause {
+            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+            color: #1a1a2e;
+        }
+
+        .btn-pause:hover {
+            box-shadow: 0 4px 12px rgba(251, 191, 36, 0.4);
+        }
+
+        /* Idea Input */
+        .idea-input-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+            background: #1a1a2e;
+            color: #eaeaea;
+            font-family: inherit;
+            font-size: 0.9rem;
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+
+        .btn-submit {
+            background: linear-gradient(135deg, #e94560, #c73e54);
+            color: #eaeaea;
+        }
+
+        .btn-submit:hover {
+            box-shadow: 0 4px 12px rgba(233, 69, 96, 0.4);
+        }
+
+        .btn-submit:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Connection Status */
+        .connection-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .connection-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .connection-label {
+            color: #9ca3af;
+        }
+
+        .connection-value {
+            font-weight: 600;
+        }
+
+        .connection-value.connected {
+            color: #4ade80;
+        }
+
+        .connection-value.disconnected {
+            color: #ef4444;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+
+            header {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .status-bar {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">Full<span>send</span></div>
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-indicator" id="agentIndicator"></div>
+                <span>Agent: <strong id="agentStatus">Connecting...</strong></span>
+            </div>
+            <div class="status-item">
+                <div class="status-indicator" id="wsIndicator"></div>
+                <span>WebSocket: <strong id="wsStatus">Disconnected</strong></span>
+            </div>
+            <div class="status-item">
+                <span>Uptime: <strong id="uptime">--:--:--</strong></span>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section class="feed-section">
+            <div class="section-header">
+                <span>Live Feed</span>
+                <span id="feedCount">0 items</span>
+            </div>
+            <div class="feed-container" id="feedContainer">
+                <div class="feed-empty">Waiting for activity...</div>
+            </div>
+        </section>
+
+        <aside class="controls-section">
+            <div class="control-card">
+                <h3>Agent Control</h3>
+                <div class="button-group">
+                    <button class="btn-go" onclick="sendCommand('go')">Go</button>
+                    <button class="btn-pause" onclick="sendCommand('pause')">Pause</button>
+                </div>
+            </div>
+
+            <div class="control-card">
+                <h3>Submit Idea</h3>
+                <div class="idea-input-container">
+                    <textarea id="ideaInput" placeholder="Enter your idea..."></textarea>
+                    <button class="btn-submit" onclick="submitIdea()">Submit</button>
+                </div>
+            </div>
+
+            <div class="control-card">
+                <h3>Connection</h3>
+                <div class="connection-info">
+                    <div class="connection-row">
+                        <span class="connection-label">Redis</span>
+                        <span class="connection-value" id="redisStatus">--</span>
+                    </div>
+                    <div class="connection-row">
+                        <span class="connection-label">Mode</span>
+                        <span class="connection-value" id="modeStatus">--</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        // Configuration
+        const WS_RECONNECT_DELAY = 3000;
+        const STATUS_POLL_INTERVAL = 5000;
+        const MAX_FEED_ITEMS = 50;
+
+        // State
+        let ws = null;
+        let feedItems = [];
+        let statusPollTimer = null;
+        let uptimeSeconds = 0;
+
+        // DOM Elements
+        const feedContainer = document.getElementById('feedContainer');
+        const feedCount = document.getElementById('feedCount');
+        const agentIndicator = document.getElementById('agentIndicator');
+        const agentStatus = document.getElementById('agentStatus');
+        const wsIndicator = document.getElementById('wsIndicator');
+        const wsStatus = document.getElementById('wsStatus');
+        const uptimeDisplay = document.getElementById('uptime');
+        const redisStatus = document.getElementById('redisStatus');
+        const modeStatus = document.getElementById('modeStatus');
+        const ideaInput = document.getElementById('ideaInput');
+
+        // Format timestamp
+        function formatTimestamp(isoString) {
+            const date = new Date(isoString);
+            return date.toLocaleTimeString();
+        }
+
+        // Format uptime
+        function formatUptime(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
+        // Update status display
+        function updateStatusDisplay(status) {
+            const isRunning = status.status === 'running';
+
+            agentStatus.textContent = status.status.charAt(0).toUpperCase() + status.status.slice(1);
+            agentIndicator.className = `status-indicator ${isRunning ? 'running' : 'paused'}`;
+
+            uptimeSeconds = status.uptime_seconds;
+            uptimeDisplay.textContent = formatUptime(uptimeSeconds);
+
+            redisStatus.textContent = status.redis_connected ? 'Connected' : 'Disconnected';
+            redisStatus.className = `connection-value ${status.redis_connected ? 'connected' : 'disconnected'}`;
+
+            modeStatus.textContent = status.mode;
+        }
+
+        // Add feed item to display
+        function addFeedItem(item) {
+            // Remove empty message if present
+            const emptyMsg = feedContainer.querySelector('.feed-empty');
+            if (emptyMsg) emptyMsg.remove();
+
+            // Create feed item element
+            const el = document.createElement('div');
+            el.className = `feed-item ${item.type || ''}`;
+            el.innerHTML = `
+                <div class="feed-item-header">
+                    <span class="feed-item-type">${item.type || 'message'}</span>
+                    <span class="feed-item-time">${formatTimestamp(item.timestamp || new Date().toISOString())}</span>
+                </div>
+                <div class="feed-item-content">${escapeHtml(item.content || JSON.stringify(item.payload || item))}</div>
+            `;
+
+            // Add to beginning
+            feedContainer.insertBefore(el, feedContainer.firstChild);
+
+            // Track items
+            feedItems.unshift(item);
+
+            // Limit items
+            while (feedContainer.children.length > MAX_FEED_ITEMS) {
+                feedContainer.removeChild(feedContainer.lastChild);
+                feedItems.pop();
+            }
+
+            // Update count
+            feedCount.textContent = `${feedItems.length} items`;
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // WebSocket connection
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                wsStatus.textContent = 'Connected';
+                wsIndicator.className = 'status-indicator running';
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data === 'pong') return;
+                    addFeedItem(data);
+                } catch (e) {
+                    // Raw message
+                    addFeedItem({ type: 'message', content: event.data, timestamp: new Date().toISOString() });
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket disconnected');
+                wsStatus.textContent = 'Disconnected';
+                wsIndicator.className = 'status-indicator disconnected';
+                // Reconnect after delay
+                setTimeout(connectWebSocket, WS_RECONNECT_DELAY);
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        }
+
+        // Send command to API
+        async function sendCommand(command, args = null) {
+            try {
+                const response = await fetch('/api/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command, args })
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    // Refresh status
+                    fetchStatus();
+                    // Add local feedback
+                    addFeedItem({
+                        type: 'command',
+                        content: `Command '${command}' executed: ${result.message}`,
+                        timestamp: new Date().toISOString()
+                    });
+                } else {
+                    alert('Command failed: ' + (result.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Command error:', error);
+                alert('Failed to send command');
+            }
+        }
+
+        // Submit idea
+        async function submitIdea() {
+            const content = ideaInput.value.trim();
+            if (!content) return;
+
+            try {
+                await sendCommand('idea', { content });
+                ideaInput.value = '';
+            } catch (error) {
+                console.error('Submit idea error:', error);
+            }
+        }
+
+        // Fetch status from API
+        async function fetchStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const status = await response.json();
+                updateStatusDisplay(status);
+            } catch (error) {
+                console.error('Status fetch error:', error);
+                agentStatus.textContent = 'Error';
+                agentIndicator.className = 'status-indicator disconnected';
+            }
+        }
+
+        // Fetch initial feed
+        async function fetchFeed() {
+            try {
+                const response = await fetch('/api/feed');
+                const feed = await response.json();
+                feed.items.reverse().forEach(item => addFeedItem(item));
+            } catch (error) {
+                console.error('Feed fetch error:', error);
+            }
+        }
+
+        // Update uptime display
+        function updateUptime() {
+            uptimeSeconds++;
+            uptimeDisplay.textContent = formatUptime(uptimeSeconds);
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            connectWebSocket();
+            fetchStatus();
+            fetchFeed();
+
+            // Poll status periodically
+            statusPollTimer = setInterval(fetchStatus, STATUS_POLL_INTERVAL);
+
+            // Update uptime every second
+            setInterval(updateUptime, 1000);
+
+            // Submit on Ctrl+Enter
+            ideaInput.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && e.key === 'Enter') {
+                    submitIdea();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
