@@ -133,8 +133,20 @@
       font-size: 0.9rem;
       color: var(--text-muted);
       line-height: 1.65;
-      white-space: pre-wrap;
     }
+    .report-body h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 1.25rem 0 0.5rem 0;
+    }
+    .report-body h3:first-child { margin-top: 0; }
+    .report-body ul {
+      margin: 0.5rem 0 1rem 0;
+      padding-left: 1.25rem;
+    }
+    .report-body li { margin-bottom: 0.35rem; }
+    .report-body p { margin: 0.5rem 0; }
     .report-body strong { color: var(--text); }
     #wandb-current-run {
       margin: 1rem 0;
@@ -177,7 +189,7 @@
       orchestrator_cycle_1_done: { label: 'Orchestrator Cycle 1', type: 'box' },
       blocked_before: { label: 'Blocked Before', type: 'hex' },
       analyzer_done: { label: 'Analyzer', type: 'box' },
-      builder_stub_done: { label: 'Builder Stub', type: 'box' },
+      builder_agent_done: { label: 'Builder', type: 'box' },
       requeue_done: { label: 'Requeue', type: 'box' },
       orchestrator_cycle_2_done: { label: 'Orchestrator Cycle 2', type: 'box' },
       blocked_after: { label: 'Blocked After', type: 'hex' },
@@ -185,7 +197,7 @@
       demo_end: { label: 'Demo End', type: 'pill' }
     };
     const PLAN_ORDER = ['roundtable_done', 'orchestrator_cycle_1_done'];
-    const IMPROVE_ORDER = ['blocked_before', 'analyzer_done', 'builder_stub_done', 'requeue_done'];
+    const IMPROVE_ORDER = ['blocked_before', 'analyzer_done', 'builder_agent_done', 'requeue_done'];
     const REPLAN_ORDER = ['orchestrator_cycle_2_done', 'blocked_after', 'analyst_report', 'demo_end'];
 
     function parseEvents(text) {
@@ -236,12 +248,14 @@
       const by = {};
       events.forEach(e => { by[e.event] = e; });
       const wandbRun = events.filter(e => e.event === 'wandb_run').pop();
+      const builderEv = by.builder_agent_done;
       return {
         tasksPublished: by.roundtable_done?.tasks_published ?? '—',
         blockedBefore: by.blocked_before?.task_count ?? '—',
         blockedItemBefore: by.blocked_before?.blocked_item_count ?? '—',
-        addedCount: by.builder_stub_done?.added_count ?? '—',
-        addedSlugs: (by.builder_stub_done?.added_slugs || []).join(', ') || '—',
+        builtCount: builderEv?.built_count ?? '—',
+        builtSlugs: (builderEv?.built_slugs || []).join(', ') || '—',
+        humanTodoCount: builderEv?.human_todo_count ?? '—',
         requeued: by.requeue_done?.requeued ?? '—',
         blockedAfter: by.blocked_after?.task_count ?? '—',
         blockedItemAfter: by.blocked_after?.blocked_item_count ?? '—',
@@ -253,9 +267,25 @@
 
     function formatReport(text) {
       if (!text) return '';
-      return escapeHtml(text)
-        .replace(/\n/g, '<br>')
-        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      var lines = text.split('\n');
+      var out = [];
+      var inList = false;
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        var escaped = escapeHtml(line).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        if (/^##\s+.+/.test(line)) {
+          if (inList) { out.push('</ul>'); inList = false; }
+          out.push('<h3>' + escaped.replace(/^##\s+/, '') + '</h3>');
+        } else if (/^[-*]\s+/.test(line)) {
+          if (!inList) { out.push('<ul>'); inList = true; }
+          out.push('<li>' + escaped.replace(/^[-*]\s+/, '') + '</li>');
+        } else {
+          if (inList) { out.push('</ul>'); inList = false; }
+          if (escaped.trim()) out.push('<p>' + escaped + '</p>');
+        }
+      }
+      if (inList) out.push('</ul>');
+      return out.join('');
     }
 
     async function run() {
@@ -293,14 +323,14 @@
       statsEl.innerHTML = [
         ['Tasks published', s.tasksPublished],
         ['Blocked before', s.blockedBefore + ' task(s), ' + s.blockedItemBefore + ' item(s)'],
-        ['Tools added', s.addedCount + ' (' + s.addedSlugs + ')'],
+        ['Builder built', s.builtCount + ' (' + s.builtSlugs + '); human_todo: ' + s.humanTodoCount],
         ['Requeued', s.requeued],
         ['Blocked after', s.blockedAfter + ' task(s), ' + s.blockedItemAfter + ' item(s)']
       ].map(function (pair) {
         return '<div class="stat"><div class="stat-label">' + escapeHtml(pair[0]) + '</div><div class="stat-value">' + escapeHtml(String(pair[1])) + '</div></div>';
       }).join('');
       if (s.analystReport) {
-        reportEl.innerHTML = '<h2>Analyst report (resolutions)</h2><div class="report-body">' + formatReport(s.analystReport) + '</div>';
+        reportEl.innerHTML = '<h2>Campaign & analyst report</h2><div class="report-body">' + formatReport(s.analystReport) + '</div>';
       }
       if (s.wandbRunUrl && wandbCurrentEl) {
         wandbCurrentEl.innerHTML = 'View this run in W&B: <a href="' + escapeHtml(s.wandbRunUrl) + '" target="_blank" rel="noopener">' + escapeHtml(s.wandbRunUrl) + '</a>';

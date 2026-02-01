@@ -11,7 +11,8 @@ Focus on: GTM viability, ROI, positioning, target segments, channels, and what w
 Be concise. Respond in character. Build on what the others said."""
 
 TECH_PROMPT = """You are the TECH voice in a GTM roundtable. Your lens is feasibility and implementation.
-Focus on: tools, automation, data, implementation constraints, and how we could actually execute.
+The executor is a Claude Code instance with Browserbase (browser automation); the builder is a Ralph loop on Claude Code that adds skills when steps are blocked.
+Focus on: what the executor can do (browser, code, APIs, existing skills), what would be blocked, and what the builder would need to add. Be concrete.
 Be concise. Respond in character. Build on what the others said."""
 
 PERSONAS = {

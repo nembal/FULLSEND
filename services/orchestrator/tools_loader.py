@@ -89,10 +89,15 @@ def get_available_tools() -> list[dict]:
 
 
 def format_tools_for_prompt(tools: list[dict]) -> str:
-    """Format tool list as a string for the LLM prompt."""
+    """Format tool list as a string for the LLM prompt (executor = Claude Code + Browserbase)."""
     if not tools:
-        return "No specific tools are configured; propose steps that could be executed by generic agents (browser, email, social, etc.)."
-    lines = ["Available downstream agents/tools (only propose steps that these can carry out):"]
+        return (
+            "The executor is a Claude Code instance with Browserbase. Propose steps it can carry out: "
+            "browser automation (navigate, forms, scrape, screenshots), run code/scripts, read-write files, call APIs. "
+            "If a step needs an integration (e.g. HubSpot, Discord) that is not implemented yet, put it in blocked_tasks "
+            "(the builder, a Ralph loop on Claude Code, can add missing skills)."
+        )
+    lines = ["The executor is a Claude Code instance with Browserbase. Available capabilities (only propose steps these can carry out):"]
     for t in tools:
         name = t.get("name", "?")
         desc = t.get("description", "")
@@ -143,6 +148,49 @@ def write_blocked_only(task_id: str, blocked: list[dict], redis_url: str | None 
         logger.debug("Wrote blocked list to Redis %s", key)
     except Exception as e:
         logger.warning("Failed to write blocked to Redis %s: %s", key, e)
+
+
+def get_task_state(task_id: str, redis_url: str | None = None) -> dict | None:
+    """Load task:{uuid} from Redis. Returns { context, previous_steps, next_steps, blocked, topic, order, updated_at } or None."""
+    try:
+        r = get_redis_client(redis_url)
+        raw = r.get(f"{REDIS_TASK_PREFIX}{task_id}")
+        if not raw:
+            return None
+        return json.loads(raw)
+    except Exception as e:
+        logger.warning("Failed to get task state %s: %s", task_id, e)
+        return None
+
+
+def update_task_after_step(
+    task_id: str,
+    step_index: int,
+    step_text: str,
+    result: str,
+    redis_url: str | None = None,
+) -> None:
+    """
+    Append completed step to previous_steps and remove it from next_steps; write back to Redis.
+    step_index is 1-based (matches orchestrator step_index).
+    """
+    try:
+        state = get_task_state(task_id, redis_url)
+        if not state:
+            logger.warning("No task state for %s; cannot update after step", task_id)
+            return
+        prev = state.get("previous_steps") or []
+        next_steps = state.get("next_steps") or []
+        prev.append({"step_index": step_index, "step": step_text, "result": result})
+        remaining = [s for i, s in enumerate(next_steps, start=1) if i != step_index]
+        state["previous_steps"] = prev
+        state["next_steps"] = remaining
+        state["updated_at"] = datetime.now(tz=timezone.utc).isoformat()
+        r = get_redis_client(redis_url)
+        r.set(f"{REDIS_TASK_PREFIX}{task_id}", json.dumps(state))
+        logger.debug("Updated task %s after step %s", task_id, step_index)
+    except Exception as e:
+        logger.warning("Failed to update task after step %s: %s", task_id, e)
 
 
 def delete_task_state(task_id: str, redis_url: str | None = None) -> None:

@@ -85,9 +85,19 @@ All queues are durable. Message body is JSON.
 
 | Queue | Payload | Published by | Consumed by |
 |-------|---------|--------------|-------------|
-| `fullsend.worker.steps` | `{ "task_id", "task", "topic", "order", "step_index", "step", "source", "created_at" }` | Orchestrator | Worker agents (later) |
+| `fullsend.worker.steps` | `{ "task_id", "task", "topic", "order", "step_index", "step", "source", "created_at" }` | Orchestrator | Executor daemon |
 
-### 3. Builder tasks (analyzer → builder consumer)
+### 3. Worker step results (executor → dashboards / orchestrator)
+
+| Queue | Payload | Published by | Consumed by |
+|-------|---------|--------------|-------------|
+| `fullsend.worker.results.worked` | `{ "task_id", "task", "topic", "order", "step_index", "step", "result", "source", "created_at" }` | Executor daemon | Dashboards, analytics |
+| `fullsend.worker.results.failed` | Same + `"error_preview"` (short result snippet) | Executor daemon | Alerts, retry logic |
+
+- Executor publishes one message per step to **worked** or **failed** depending on outcome (result looks like success vs executor error / invalid key / etc.).
+- Env: `WORKER_RESULTS_WORKED_QUEUE`, `WORKER_RESULTS_FAILED_QUEUE` (defaults above).
+
+### 4. Builder tasks (analyzer → builder consumer)
 
 | Queue | Payload | Published by | Consumed by |
 |-------|---------|--------------|-------------|
@@ -112,7 +122,16 @@ All queues are durable. Message body is JSON.
 - **`format`:** Always `"builder_instruction"` so the consumer knows how to present this to Claude Code.
 - **`blocked_context`:** Full list of blocked tasks from this analyzer run; Claude Code knows what capability this instruction is meant to address.
 
-### 4. Approval queue (future)
+### 5. Human to-do (builder → humans)
+
+| Queue | Payload | Published by | Consumed by |
+|-------|---------|--------------|-------------|
+| `fullsend.human.todo` | `{ "task", "reason", "context", "source", "created_at" }` | Builder agent | Human-in-the-loop UI / ticketing |
+
+- Builder agent publishes here when it **cannot** build a practical tool for a failure (e.g. needs API keys, legal review, or custom code it can’t generate).
+- Env: `HUMAN_TODO_QUEUE` (default `fullsend.human.todo`).
+
+### 6. Approval queue (future)
 
 | Queue | Payload | Published by | Consumed by |
 |-------|---------|--------------|-------------|
@@ -127,9 +146,11 @@ All queues are durable. Message body is JSON.
 1. **User** sets campaign (topic + limits) → `campaign:active` (and/or CLI arg for now).
 2. **Roundtable** runs → publishes GTM tasks to `fullsend.orchestrator.tasks`.
 3. **Orchestrator** consumes → reads `tools:available` → plans next_steps + blocked → publishes steps to `fullsend.worker.steps` → writes `task:{uuid}`, `task:{uuid}:blocked`.
-4. **Analyzer** runs → reads all blocked from Redis → roundtable (builder mode) → publishes to `fullsend.builder.tasks` with `blocked_context` + `format: builder_instruction`.
-5. **Builder consumer** (you, later) consumes → hands enriched message to Claude Code → builder adds new tool to `tools:available` and new skill to `skills:index` + `skill:{id}`.
-6. Orchestrator (and others) read `tools:available` and `skill:{id}` in real time; no restart.
+4. **Executor daemon** consumes from `fullsend.worker.steps` → loads task + skills from Redis → runs each step (Claude Code + Browserbase) → updates Redis `task:{uuid}` → publishes outcome to `fullsend.worker.results.worked` or `fullsend.worker.results.failed`.
+5. **Analyzer** runs → reads all blocked from Redis → roundtable (builder mode) → publishes to `fullsend.builder.tasks` with `blocked_context` + `format: builder_instruction`.
+6. **Builder consumer** (you, later) consumes → hands enriched message to Claude Code → builder adds new tool to `tools:available` and new skill to `skills:index` + `skill:{id}`.
+7. **Builder agent** (optional) consumes from `fullsend.worker.results.failed` → summarizes failures → for each: builds a practical tool (Redis) or publishes to `fullsend.human.todo` (human-in-the-loop).
+8. Orchestrator (and others) read `tools:available` and `skill:{id}` in real time; no restart.
 
 ---
 

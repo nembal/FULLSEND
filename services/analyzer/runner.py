@@ -84,8 +84,11 @@ def load_all_blocked_from_redis() -> list[dict]:
 def format_blocked_for_seed_context(blocked: list[dict]) -> str:
     """Format blocked list as a string for roundtable seed_context."""
     if not blocked:
-        return "There are no blocked tasks in Redis yet. Consider running the orchestrator first so some GTM tasks produce blocked items."
-    lines = ["Blocked tasks (could not be run with current tools):"]
+        return "There are no blocked steps in Redis yet. Consider running the orchestrator first so some GTM tasks produce blocked steps (steps the executor Claude Code + Browserbase could not run with current capabilities)."
+    lines = [
+        "Blocked steps (the executor Claude Code + Browserbase could not run with current capabilities). "
+        "The builder (Ralph loop on Claude Code) will get instructions to add missing skills:"
+    ]
     for i, b in enumerate(blocked, 1):
         task = b.get("task", "")
         reason = b.get("reason", "")

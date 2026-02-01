@@ -76,7 +76,7 @@ def process_one_task(task_payload: dict, llm, tools_context: str) -> dict:
     system = STEPS_SYSTEM_TEMPLATE.format(tools_context=tools_context)
     messages = [
         SystemMessage(content=system),
-        HumanMessage(content=f"Task:\n{task_text}\n\nTopic: {topic}\n\nOutput JSON with next_tasks and blocked_tasks."),
+        HumanMessage(content=f"GTM task:\n{task_text}\n\nTopic: {topic}\n\nOutput JSON with next_tasks (steps the executor Claude Code + Browserbase can run) and blocked_tasks (steps it cannot run yet)."),
     ]
     response = llm.invoke(messages)
     response_text = response.content if hasattr(response, "content") else str(response)

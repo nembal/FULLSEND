@@ -113,3 +113,41 @@
   - Verify web dashboard receives updates
   - Document manual test steps in comments
 
+
+## Builder-driven tasks (from executor failures)
+
+- [x] TASK-018: Add tool **hubspotcontactcreator**: A wrapper that authenticates with HubSpot and creates or updates contacts via the HubSpot REST API.
+  - Constraint: Requires a HubSpot API key (or OAuth token) with contacts write scope.
+  - From executor failure: step "Call HubSpot API to create a contact with email test@example.com", error "No HubSpot API tool available"
+  - Create RALPH/builder_output/tool_hubspotcontactcreator.json with keys: name, description, constraints, skill_content (markdown string), addresses_blocked (list of {task, reason}).
+  - Run from repo root: python scripts/register_ralph_tools.py
+  - Update RALPH/STATUS.md with what you did. Mark task done in TASKS.md. Output **TASK_DONE**
+
+- [ ] TASK-019: Add tool **pythonscriptrunner**: Executes short Python scripts with network access and returns stdout as JSON.
+  - Constraint: Limited to scripts under 200 lines and execution time under 30 seconds.
+  - From executor failure: step "Run a Python script to fetch a page, parse HTML, and return headings and links as JSON", error "No Python script runner tool; step requires a small script"
+  - Create RALPH/builder_output/tool_pythonscriptrunner.json with keys: name, description, constraints, skill_content (markdown string), addresses_blocked (list of {task, reason}).
+  - Run from repo root: python scripts/register_ralph_tools.py
+  - Update RALPH/STATUS.md with what you did. Mark task done in TASKS.md. Output **TASK_DONE**
+
+- [ ] TASK-020: Add tool **genericwebscraper**: Provides a configurable scraper that extracts repeated item blocks using CSS selectors.
+  - Constraint: Requires user to supply CSS selectors; respects robots.txt and rate limits.
+  - From executor failure: step "Scrape the product list from a given URL and return title, price, and link for each item", error "Scraper tool not available; need a reusable scraper for list pages"
+  - Create RALPH/builder_output/tool_genericwebscraper.json with keys: name, description, constraints, skill_content (markdown string), addresses_blocked (list of {task, reason}).
+  - Run from repo root: python scripts/register_ralph_tools.py
+  - Update RALPH/STATUS.md with what you did. Mark task done in TASKS.md. Output **TASK_DONE**
+
+- [ ] TASK-021: Add tool **browserbasescreenshotextractor**: Wraps Browserbase API to load a page, capture a screenshot, and run a DOM query for the main heading.
+  - Constraint: Requires valid Browserbase API key and supports only one navigation per call.
+  - From executor failure: step "Open URL in Browserbase, take a screenshot, extract the main h1 text, and return it", error "Browserbase session failed or navigate + extract tool not configured"
+  - Create RALPH/builder_output/tool_browserbasescreenshotextractor.json with keys: name, description, constraints, skill_content (markdown string), addresses_blocked (list of {task, reason}).
+  - Run from repo root: python scripts/register_ralph_tools.py
+  - Update RALPH/STATUS.md with what you did. Mark task done in TASKS.md. Output **TASK_DONE**
+
+- [ ] TASK-022: Add tool **pythonscriptrunner**: Executes short Python scripts with network access and returns the script's stdout as text.
+  - Constraint: Only allows scripts up to 200 lines and limits execution time to 30 seconds.
+  - From executor failure: step "Run a Python script to fetch a page, parse HTML, and return headings and links as JSON", error "No Python script runner tool"
+  - Create RALPH/builder_output/tool_pythonscriptrunner.json with keys: name, description, constraints, skill_content (markdown string), addresses_blocked (list of {task, reason}).
+  - Run from repo root: python scripts/register_ralph_tools.py
+  - Update RALPH/STATUS.md with what you did. Mark task done in TASKS.md. Output **TASK_DONE**
+

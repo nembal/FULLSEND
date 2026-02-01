@@ -7,6 +7,7 @@ readme = "README.md"
 
 # Root deps for scripts (redis agent, roundtable) that don't have their own package
 dependencies = [
+    "anthropic>=0.39.0",
     "flask>=3.0.0",
     "langchain-openai>=0.2.0",
     "langchain-core>=0.2.0",
@@ -15,6 +16,7 @@ dependencies = [
     "pika>=1.3.0",
     "redis>=5.0.0",
     "wandb>=0.16.0",
+    "stagehand>=3.0.0",
 ]
 
 [project.optional-dependencies]

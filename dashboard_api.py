@@ -24,10 +24,11 @@ DEMO_LOG_PATH = ROOT / "Demo_logs.txt"
 AGENT_LABELS = {
     "roundtable": "Roundtable",
     "orchestrator": "Orchestrator",
+    "executor": "Executor",
     "analyzer": "Analyzer",
     "builder": "Builder",
 }
-AGENT_ORDER = ["roundtable", "orchestrator", "analyzer", "builder"]
+AGENT_ORDER = ["roundtable", "orchestrator", "executor", "analyzer", "builder"]
 
 
 def _parse_events(text: str) -> list[dict]:

@@ -65,15 +65,15 @@ def run_builder_stub(max_messages: int | None = None) -> tuple[int, list[str]]:
             name = slug.replace("-", " ").title()
             tool = {
                 "name": slug,
-                "description": f"{name} (demo stub from builder queue)",
-                "constraints": "Added by demo builder stub; replace with real implementation.",
+                "description": f"{name} (skill added by builder; Ralph loop on Claude Code).",
+                "constraints": "Added by builder queue; replace with real implementation when Ralph loop implements it.",
             }
             append_tool_to_available(tool)
             register_skill(
                 skill_id=slug,
                 name=name,
                 description=tool["description"],
-                content="# Demo stub skill. Replace with real SKILL.md or implementation.",
+                content="# Skill added by builder (Ralph loop). Replace with real SKILL.md or implementation.",
                 addresses_blocked=blocked_context[:3],
             )
             added_slugs.append(slug)

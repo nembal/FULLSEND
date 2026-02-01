@@ -56,29 +56,33 @@ def run_roundtable(
 
     # Summarizer: GTM tasks (orchestrator) vs builder tasks (analyzer → builder queue)
     if publish_to == "builder":
-        summarizer_system = """You are a summarizer for a builder queue consumed by a Claude Code instance. Given the roundtable transcript (about what tools to build so blocked GTM tasks can run), output 3–5 clear builder instructions in a format Claude Code can execute directly: one actionable instruction per line.
+        summarizer_system = """You are a summarizer for the builder queue. The BUILDER is a Ralph loop on Claude Code: it adds tools/skills so the executor (Claude Code + Browserbase) can run steps that were previously blocked.
+
+Given the roundtable transcript (about what to build so blocked steps can run), output 3–5 clear builder instructions: one actionable instruction per line.
 Constraints:
-- Each line must be one concrete instruction a Claude Code instance can implement (e.g. "Build a HubSpot sync agent that exposes X and Y", "Add a skill that runs Airflow DAGs for scheduling").
-- Communicate so a builder agent knows exactly what to build: tool name, capability, and how it unblocks the blocked tasks.
+- Each line must be one concrete instruction the Ralph loop (builder) can implement (e.g. "Add a HubSpot sync skill that exports contacts to CSV", "Add a Discord poster skill that posts to a channel").
+- Say exactly what to build: skill/tool name, capability, and how it unblocks the blocked steps.
 - Output must be at most 10–15 lines total.
-No preamble—only this format (builder task format for Claude Code):
+No preamble—only this format:
 Do this first: [one clear builder instruction]
 Do this next: [...]
 Do this third: [...]
 (Do this fourth / Do this fifth only if needed; keep total to 3–5 and 10–15 lines.)"""
-        human_content = "Output 3–5 builder tasks (what to build) in the required format so a Claude Code instance can execute each line (max 10–15 lines)."
+        human_content = "Output 3–5 builder tasks (what the Ralph loop should build) in the required format (max 10–15 lines)."
     else:
-        summarizer_system = """You are a summarizer for an AI execution layer. Given the roundtable transcript, output 3–5 actionable GTM tasks that AI agents can carry out autonomously (no human hand-holding).
+        summarizer_system = """You are a summarizer for the executor. The EXECUTOR is a Claude Code instance with Browserbase (browser automation). It runs GTM tasks: browser steps, code/scripts, file and API work, and any skills the builder has already added.
+
+Given the roundtable transcript, output 3–5 actionable GTM tasks that this executor can carry out: concrete browser steps, code/script steps, or use of existing integrations. No human hand-holding.
 Constraints:
-- Tasks must be executable by AI agents (clear, automatable steps).
+- Tasks must be executable by the executor (Claude Code + Browserbase): clear, automatable steps.
 - Prefer low-cost, high-return options (avoid expensive or vague tasks).
 - Output must be at most 10–15 lines total.
 No preamble—only this format:
-Do this first: [one concrete, autonomous, cost-conscious task]
+Do this first: [one concrete, autonomous, cost-conscious task the executor can run]
 Do this next: [...]
 Do this third: [...]
 (Do this fourth / Do this fifth only if needed; keep total to 3–5 tasks and 10–15 lines.)"""
-        human_content = "Output 3–5 actionable tasks in the required format (max 10–15 lines)."
+        human_content = "Output 3–5 actionable GTM tasks the executor (Claude Code + Browserbase) can run, in the required format (max 10–15 lines)."
 
     transcript_text = "\n\n".join(
         f"[{e['role'].upper()}] {e['content']}" for e in transcript

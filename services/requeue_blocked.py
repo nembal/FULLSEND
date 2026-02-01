@@ -44,6 +44,34 @@ def get_task_states_with_blocked() -> list[dict]:
         return []
 
 
+def get_all_task_states() -> list[dict]:
+    """Load all task:{uuid} from Redis (not :blocked keys). Returns list of { task_id, context, next_steps, blocked, topic, order }."""
+    from services.orchestrator.tools_loader import get_redis_client, REDIS_TASK_PREFIX
+
+    try:
+        r = get_redis_client()
+        keys = [k for k in r.keys(f"{REDIS_TASK_PREFIX}*") if not k.endswith(":blocked")]
+        out = []
+        for key in keys:
+            raw = r.get(key)
+            if not raw:
+                continue
+            data = json.loads(raw)
+            task_id = key.replace(REDIS_TASK_PREFIX, "")
+            out.append({
+                "task_id": task_id,
+                "context": data.get("context", ""),
+                "next_steps": data.get("next_steps") or [],
+                "blocked": data.get("blocked") or [],
+                "topic": data.get("topic", ""),
+                "order": data.get("order"),
+            })
+        return out
+    except Exception as e:
+        logger.warning("Failed to load all task states from Redis: %s", e)
+        return []
+
+
 def requeue_blocked_tasks() -> int:
     """
     Publish each task payload that had blocked items back to the orchestrator queue,

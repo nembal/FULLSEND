@@ -237,4 +237,16 @@ Inbound (to orchestrator): idea_submit, action_complete, command, config_update
     - Web dashboard testing (controls, idea submission, live feed)
     - Full integration testing (both adapters together)
   - Files changed: `services/discord/test_integration.py` (new)
+- TASK-018: Add tool hubspotcontactcreator
+  - Created `RALPH/builder_output/tool_hubspotcontactcreator.json` with tool specification
+  - Tool provides HubSpot API integration for creating and updating contacts
+  - Requires HUBSPOT_API_KEY environment variable with contacts write scope
+  - Implements create_or_update_hubspot_contact() function with:
+    - Email-based contact creation/update
+    - Support for standard HubSpot contact properties (firstname, lastname, phone, company, etc.)
+    - Automatic handling of duplicate contacts (409 conflict) via search and update
+    - Proper error handling and API authentication
+  - Registered tool and skill to Redis via `python scripts/register_ralph_tools.py`
+  - Addresses executor failure: "Call HubSpot API to create a contact with email test@example.com"
+  - Files changed: `RALPH/builder_output/tool_hubspotcontactcreator.json` (new)
 
