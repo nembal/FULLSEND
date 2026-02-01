@@ -2,6 +2,9 @@
 
 An autonomous GTM agent that ships ideas continuously, builds its own tools, and gets smarter over time.
 
+![Fullsend Dashboard](Screenshot%202026-02-01%20at%201.16.08%20PM.png)
+*The Fullsend dashboard showing Discord integration and live message flow between services*
+
 See [VISION.md](./VISION.md) for the full concept and architecture.
 
 ## Quick Start
