@@ -162,6 +162,12 @@ EOF
 | **Roundtable** | `services/roundtable/personas/tech.txt` | Technical persona |
 | **Roundtable** | `services/roundtable/personas/summarizer.txt` | Synthesis persona |
 
+### Documentation Overlap (Consolidation Note)
+
+This doc and `docs/SYSTEM_PROMPTS.md` overlap. Consider consolidating into a single
+source of truth to avoid drift. If you keep both, treat `docs/SYSTEM_PROMPTS.md` as
+the quick reference and this file as the "how-to" for skills and prompt updates.
+
 ### Template Variables in Prompts
 
 Prompts can include template variables filled at runtime:

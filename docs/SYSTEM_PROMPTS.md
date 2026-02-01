@@ -8,8 +8,8 @@ These services run as Claude Code instances with system prompts:
 
 | Service | Prompt File | Model | Purpose |
 |---------|-------------|-------|---------|
-| **FULLSEND** | `services/fullsend/prompts/system.txt` | Claude Opus 4 | Experiment designer, creative strategist |
-| **Builder** | `services/builder/prompts/system.txt` | Claude Opus 4 | Tool factory, builds Python tools from PRDs |
+| **FULLSEND** | `services/fullsend/prompts/system.txt` | Claude Opus 4.5 | Experiment designer, creative strategist |
+| **Builder** | `services/builder/prompts/system.txt` | Claude Opus 4.5 | Tool factory, builds Python tools from PRDs |
 
 ## Python Services (LLM API Callers)
 
@@ -17,12 +17,12 @@ These services call LLM APIs with prompts:
 
 | Service | Prompt Files | Model | Purpose |
 |---------|--------------|-------|---------|
-| **Orchestrator** | `services/orchestrator/prompts/system.txt` | Claude Opus 4 | Strategic decision maker |
+| **Orchestrator** | `services/orchestrator/prompts/system.txt` | Claude Opus 4.5 | Strategic decision maker |
 | | `services/orchestrator/prompts/dispatch.txt` | | Task dispatch logic |
 | | `services/orchestrator/prompts/learn.txt` | | Learning extraction |
-| **Watcher** | `services/watcher/prompts/classify.txt` | Gemini Flash | Message classification |
+| **Watcher** | `services/watcher/prompts/classify.txt` | Gemini 3 Flash Preview | Message classification |
 | | `services/watcher/prompts/respond.txt` | | Simple response generation |
-| **Redis Agent** | `services/redis_agent/prompts/analyze.txt` | Gemini Flash | Metrics analysis |
+| **Redis Agent** | `services/redis_agent/prompts/analyze.txt` | Gemini 3 Flash Preview | Metrics analysis |
 | | `services/redis_agent/prompts/summarize.txt` | | Summary generation |
 
 ## Roundtable Personas
